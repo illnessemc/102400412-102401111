@@ -1,8 +1,9 @@
 (function (root, factory) {
-  const api = factory(typeof module === 'object' && module.exports ? require('./posts.js') : root.CampusPosts);
+  const isNode = typeof module === 'object' && module.exports;
+  const api = factory(isNode ? require('./posts.js') : root.CampusPosts, isNode ? null : root.CampusApi);
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.CampusManage = api;
-})(globalThis, function (Posts) {
+})(globalThis, function (Posts, Api) {
   'use strict';
 
   const POSTS_KEY = Posts.STORAGE_KEY;
@@ -17,6 +18,7 @@
   }
 
   function getUserId(storage) {
+    if (storage === undefined && Api && Api.enabled) return Api.request('session');
     try {
       const store = storageFor(storage);
       let userId = store.getItem(USER_KEY);
@@ -31,6 +33,7 @@
   }
 
   function readPosts(storage) {
+    if (storage === undefined && Api && Api.enabled) return Api.request('posts');
     let store;
     try { store = storageFor(storage); } catch (error) { store = null; }
     const data = Posts.readStoredPosts(store);
@@ -70,6 +73,7 @@
   }
 
   function savePost(data, storage) {
+    if (storage === undefined && Api && Api.enabled) return Api.request('posts', { method: 'POST', data });
     const errors = validate(data);
     if (errors.length) return { ok: false, errors };
     const records = readPosts(storage);
@@ -90,6 +94,7 @@
   }
 
   function getMyPosts(storage) {
+    if (storage === undefined && Api && Api.enabled) return Api.request('my-posts');
     const records = readPosts(storage);
     if (!records.ok) return records;
     const identity = getUserId(storage);
@@ -99,11 +104,13 @@
   }
 
   function getPostById(id, storage) {
+    if (storage === undefined && Api && Api.enabled) return Api.request('posts/' + encodeURIComponent(id));
     const records = readPosts(storage);
     return records.ok ? { ok: true, post: Posts.findPost(records.posts, id) } : records;
   }
 
   function updateStatus(id, newStatus, storage) {
+    if (storage === undefined && Api && Api.enabled) return Api.request('posts/' + encodeURIComponent(id), { method: 'PATCH', data: { status: newStatus } });
     const records = readPosts(storage);
     if (!records.ok) return records;
     const identity = getUserId(storage);
@@ -118,6 +125,7 @@
   }
 
   function deletePost(id, storage) {
+    if (storage === undefined && Api && Api.enabled) return Api.request('posts/' + encodeURIComponent(id), { method: 'DELETE' });
     const records = readPosts(storage);
     if (!records.ok) return records;
     const identity = getUserId(storage);

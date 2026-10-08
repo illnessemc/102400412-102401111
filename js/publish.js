@@ -28,7 +28,7 @@
       const submit = container.querySelector('#pub-submit');
       type.addEventListener('change', function () { updateLabels(container); });
       container.querySelector('#pub-cancel').addEventListener('click', function () { CampusUI.navigate('home'); });
-      form.addEventListener('submit', function (event) {
+      form.addEventListener('submit', async function (event) {
         event.preventDefault();
         if (form.dataset.submitting === '1') return;
         form.dataset.submitting = '1';
@@ -38,34 +38,42 @@
         ['type', 'name', 'category', 'place', 'time', 'contact', 'desc'].forEach(function (field) {
           data[field] = container.querySelector('#pub-' + field).value;
         });
-        const result = CampusManage.savePost(data);
+        const route = location.hash;
+        Array.from(form.elements).forEach(control => { control.disabled = true; });
+        const result = await CampusManage.savePost(data);
         if (!result.ok) {
           errorNote.textContent = result.errors.join(' ');
           errorNote.hidden = false;
           errorNote.focus();
           form.dataset.submitting = '0';
-          submit.disabled = false;
+          Array.from(form.elements).forEach(control => { control.disabled = false; });
           return;
         }
         form.reset();
         updateLabels(container);
+        form.dataset.saved = '1';
         // Keep the successful submission locked until the next visit to this form.
-        CampusUI.navigate('success?id=' + encodeURIComponent(result.post.id));
+        if (location.hash === route) CampusUI.navigate('success?id=' + encodeURIComponent(result.post.id));
+        else CampusUI.toast('信息已发布，可在我的发布中查看。');
         window.dispatchEvent(new Event('campus:posts-changed'));
       });
     }
     const form = container.querySelector('#pub-form');
-    form.dataset.submitting = '0';
-    container.querySelector('#pub-submit').disabled = false;
+    if (form.dataset.saved === '1') {
+      form.dataset.saved = '0';
+      form.dataset.submitting = '0';
+      Array.from(form.elements).forEach(control => { control.disabled = false; });
+    }
     const type = params.get('type');
-    if (type === 'lost' || type === 'found') container.querySelector('#pub-type').value = type;
+    if (form.dataset.submitting !== '1' && (type === 'lost' || type === 'found')) container.querySelector('#pub-type').value = type;
     updateLabels(container);
   }
 
-  function renderSuccess(container, params) {
+  async function renderSuccess(container, params, isCurrent = () => true) {
     const el = CampusUI.element;
     container.replaceChildren();
-    const records = CampusManage.getMyPosts();
+    const records = await CampusManage.getMyPosts();
+    if (!isCurrent()) return;
     if (!records.ok) {
       container.append(el('p', 'form-error', records.errors.join(' ')));
       return;

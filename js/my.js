@@ -40,16 +40,19 @@
       const filter = event.target.value;
       CampusUI.navigate(filter === 'all' ? 'my' : 'my?filter=' + filter);
     });
-    container.addEventListener('click', function (event) {
+    container.addEventListener('click', async function (event) {
       const button = event.target.closest('button[data-action]');
       if (!button || button.disabled) return;
-      const result = CampusManage.getPostById(button.dataset.id);
+      button.disabled = true;
+      const result = await CampusManage.getPostById(button.dataset.id);
+      button.disabled = false;
+      if (!button.isConnected) return;
       if (!result.ok) { CampusUI.toast(result.errors.join(' ')); return; }
       if (!result.post) { CampusUI.toast('这条信息不存在或已被删除'); return; }
       const deleting = button.dataset.action === 'delete';
       if (!confirm(deleting ? '确定删除这条发布吗？' : '确定标记为' + finishStatus(result.post) + '吗？')) return;
       button.disabled = true;
-      const saved = deleting ? CampusManage.deletePost(result.post.id) : CampusManage.updateStatus(result.post.id, finishStatus(result.post));
+      const saved = await (deleting ? CampusManage.deletePost(result.post.id) : CampusManage.updateStatus(result.post.id, finishStatus(result.post)));
       if (!saved.ok) {
         button.disabled = false;
         CampusUI.toast(saved.errors.join(' '));
@@ -60,11 +63,12 @@
     });
   }
 
-  function render(container, params) {
+  async function render(container, params, isCurrent = () => true) {
     bindActions(container);
     const el = CampusUI.element;
     container.replaceChildren();
-    const result = CampusManage.getMyPosts();
+    const result = await CampusManage.getMyPosts();
+    if (!isCurrent()) return;
     if (!result.ok) {
       const errorNote = el('p', 'form-error', result.errors.join(' '));
       errorNote.setAttribute('role', 'alert');
