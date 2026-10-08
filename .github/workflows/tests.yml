@@ -1,0 +1,28 @@
+name: Automated tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 1 * * *' # UTC 01:17，即北京时间 09:17
+
+permissions:
+  contents: read
+
+jobs:
+  unit-and-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Representative unit scenarios
+        run: node --test tests/examples.test.cjs
+      - name: Unit coverage and HTTP integration
+        run: node --test --experimental-test-coverage tests/posts.test.cjs tests/manage.test.cjs tests/server.test.cjs
