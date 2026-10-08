@@ -101,6 +101,26 @@ async function browserScenarios() {
     expect(page.document.querySelector('#success-content').textContent.includes(payload), '刷新后成功页丢失');
     expect(!page.document.querySelector('#success-content img'), '刷新后执行了 HTML');
   });
+  await scenario('成功页下一步入口可用，详情属于刚发布的记录且手机操作不溢出', async () => {
+    const route = page.location.hash.slice(1);
+    const primary = page.document.querySelector('.success-actions .action-primary');
+    expect(primary.getAttribute('href') === '#my', '主操作没有进入本人记录');
+    expect(page.document.querySelector('a.nav-link[aria-current="page"]').dataset.page === 'publish', '成功页发布导航未选中');
+    page.document.querySelector('.success-actions .action-secondary').click(); await wait();
+    expect(new URLSearchParams(page.location.hash.split('?')[1]).get('id') === found.id, '成功页打开了其他记录');
+    expect(page.document.querySelector('a.nav-link[aria-current="page"]').dataset.page === 'my', '本人详情导航没有延续来源');
+    page.document.querySelector('#detail-back').click(); await wait();
+    expect(page.location.hash === '#my', '详情返回没有进入本人记录');
+    await go(route);
+    frame.style.width = '393px'; await wait();
+    expect(page.document.documentElement.scrollWidth <= page.innerWidth, '成功页手机横向溢出');
+    for (const action of page.document.querySelectorAll('.success-actions a')) {
+      const rect = action.getBoundingClientRect();
+      expect(rect.left >= 0 && rect.right <= page.innerWidth && rect.height >= 44, '手机主操作被裁切或点击区域过小');
+    }
+    expect(page.document.querySelector('.success-next').textContent.includes('已归还'), '招领缺少结束状态指引');
+    frame.style.width = '1000px';
+  });
   await scenario('再发一条清空旧表单并解除提交锁', async () => {
     page.document.querySelector('#success-content a[href="#publish"]').click(); await wait();
     expect(page.document.querySelector('#pub-name').value === '', '旧名称残留');
@@ -309,7 +329,7 @@ test('Chrome 页面回归', { timeout: 60000 }, async t => {
     const results = JSON.parse(Buffer.from(match[1], 'base64').toString('utf8'));
     if (process.env.CAMPUS_TEST_ARTIFACT_DIR) await fs.writeFile(path.join(process.env.CAMPUS_TEST_ARTIFACT_DIR, 'browser-results.json'), JSON.stringify(results, null, 2));
     for (const result of results) await t.test(result.name, () => assert.equal(result.ok, true, result.error));
-    assert.equal(results.length, 21, '浏览器场景未全部执行');
+    assert.equal(results.length, 22, '浏览器场景未全部执行');
   } finally {
     await new Promise(resolve => server.close(resolve));
     const target = path.resolve(profile);

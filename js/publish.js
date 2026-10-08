@@ -104,20 +104,65 @@
       container.append(empty);
       return;
     }
-    const card = el('div', 'detail-card success-card');
-    card.append(el('p', 'success-symbol', '✓'), el('h2', '', '发布成功！'));
+    const found = post.type === 'found';
+    const done = CampusPosts.isFinished(post);
+    const layout = el('div', 'success-layout');
+    const card = el('article', 'success-card');
+    const intro = el('div', 'success-intro');
+    const symbol = el('span', 'success-symbol', '✓');
+    symbol.setAttribute('aria-hidden', 'true');
+    const heading = el('h2', 'success-title', '发布成功！');
+    heading.tabIndex = -1;
+    const message = el('div', 'success-message');
+    const copy = done ? '这条信息已经结束，记录仍可在我的发布和历史搜索中查看。' : found ?
+      '谢谢你留下这条招领线索。小小的善意，让物品多一次回家的机会。' :
+      '寻物信息已经保存。愿这条线索，帮你早一点找回熟悉的物品。';
+    message.append(heading, el('p', '', copy));
+    intro.append(symbol, message);
+
+    const preview = el('section', 'success-preview');
+    const previewHeading = el('div', 'success-preview-heading');
+    previewHeading.append(el('h3', '', post.name), el('span', 'badge ' + (done ? 'done' : post.type), post.status));
+    preview.append(el('p', 'context-eyebrow', '这次发布的信息'), previewHeading,
+      el('p', 'success-category', (found ? '招领信息' : '寻物信息') + (post.category ? ' · ' + post.category : '')));
     const summary = el('dl', 'detail-grid');
-    [['物品名称', post.name], ['信息类型', post.type === 'lost' ? '寻物' : '招领'], ['地点', post.place], ['当前状态', post.status]].forEach(function ([label, value]) {
+    [[found ? '拾取地点' : '丢失地点', post.place], [found ? '拾取时间' : '丢失时间', CampusPosts.displayTime(post.time)], ['联系类型', CampusPosts.contactLabel(post)]].forEach(function ([label, value]) {
       summary.append(el('dt', '', label), el('dd', '', value));
     });
-    const actions = el('div', 'form-actions');
-    [['home', '返回首页'], ['my', '查看我的发布'], ['publish', '再发一条']].forEach(function ([route, label]) {
-      const link = el('a', 'back-link', label);
+    preview.append(summary);
+    const actions = el('div', 'success-actions');
+    const detailRoute = 'detail?' + new URLSearchParams({ id: String(post.id), from: 'my' }).toString();
+    [['my', '查看我的发布', 'action-primary'], [detailRoute, '查看这条信息', 'action-secondary']].forEach(function ([route, label, style]) {
+      const link = el('a', 'action-link ' + style, label);
       link.href = '#' + route;
       actions.append(link);
     });
-    card.append(summary, actions);
-    container.append(card);
+    const footer = el('div', 'success-footer');
+    [['home', '返回首页'], ['publish', '再发一条']].forEach(function ([route, label]) {
+      const link = el('a', '', label);
+      link.href = '#' + route;
+      footer.append(link);
+    });
+    card.append(intro, preview, actions, footer);
+
+    const next = el('aside', 'context-card success-next');
+    const nextHeading = el('h2', '', '接下来，慢慢来');
+    nextHeading.id = 'success-next-heading';
+    next.setAttribute('aria-labelledby', nextHeading.id);
+    next.append(el('p', 'context-eyebrow', '接下来可以做什么'), nextHeading);
+    const steps = el('ol', 'next-steps');
+    [['再核对一遍', '确认物品特征、地点和联系账号都填写正确。'],
+      ['联系时确认特征', '通过详情里的联系方式沟通，核对后再认领或归还。'],
+      [done ? '记录已经结束' : '有结果就更新状态', done ? '需要回看时，在搜索中勾选包括已结束的信息。' :
+        '到我的发布标记“' + (found ? '已归还' : '已找到') + '”，让同学少一次等待。']].forEach(function ([title, text]) {
+      const step = el('li', '');
+      step.append(el('strong', '', title), el('p', '', text));
+      steps.append(step);
+    });
+    next.append(steps);
+    layout.append(card, next);
+    container.append(layout);
+    heading.focus({ preventScroll: true });
   }
 
   window.PublishModule = { render, renderSuccess };
