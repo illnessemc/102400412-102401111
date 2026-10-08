@@ -1,0 +1,180 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const http = require('node:http');
+const { createAppHandler } = require('../server.cjs');
+
+function input(fields = {}) {
+  return { type: 'lost', name: '共享测试雨伞', category: '雨伞', place: '图书馆', time: '2026-10-08T09:00', desc: '黑色银柄', contact: 'TEST_QQ', ...fields };
+}
+
+async function fixture(t) {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'campus-server-'));
+  let server;
+  let base;
+  async function start() {
+    server = http.createServer(createAppHandler({ dataDir }));
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    base = 'http://127.0.0.1:' + server.address().port;
+  }
+  async function stop() {
+    if (server && server.listening) await new Promise(resolve => server.close(resolve));
+  }
+  function client() {
+    return {
+      cookie: '',
+      async request(route, options = {}) {
+        const headers = { ...options.headers };
+        if (this.cookie) headers.Cookie = this.cookie;
+        if (options.data !== undefined) headers['Content-Type'] = 'application/json';
+        const response = await fetch(base + route, { method: options.method || 'GET', headers, body: options.data !== undefined ? JSON.stringify(options.data) : options.body });
+        const cookie = response.headers.get('set-cookie');
+        if (cookie) this.cookie = cookie.split(';')[0];
+        return { status: response.status, headers: response.headers, result: await response.json() };
+      }
+    };
+  }
+  t.after(async () => {
+    await stop();
+    const target = path.resolve(dataDir);
+    assert.equal(path.dirname(target), path.resolve(os.tmpdir()));
+    assert.ok(path.basename(target).startsWith('campus-server-'));
+    fs.rmSync(target, { recursive: true, force: true });
+  });
+  await start();
+  return { dataDir, client, start, stop, get base() { return base; } };
+}
+
+test('共享服务启动时为空，发布者身份保存在 HttpOnly 签名 Cookie', async t => {
+  const app = await fixture(t);
+  const a = app.client();
+  const session = await a.request('/api/session');
+  assert.equal(session.status, 200);
+  assert.match(session.headers.get('set-cookie'), /HttpOnly; SameSite=Lax/);
+  assert.equal((await a.request('/api/session')).result.userId, session.result.userId);
+  assert.deepEqual((await a.request('/api/posts')).result.posts, []);
+});
+
+test('甲发布，乙能浏览详情与联系方式，但我的发布按身份隔离', async t => {
+  const app = await fixture(t);
+  const a = app.client();
+  const b = app.client();
+  const saved = await a.request('/api/posts', { method: 'POST', data: input() });
+  assert.equal(saved.status, 201);
+  const record = saved.result.post;
+  assert.equal((await b.request('/api/posts')).result.posts[0].id, record.id);
+  const detail = await b.request('/api/posts/' + record.id);
+  assert.equal(detail.result.post.contact, 'TEST_QQ');
+  assert.equal((await a.request('/api/my-posts')).result.posts.length, 1);
+  assert.equal((await b.request('/api/my-posts')).result.posts.length, 0);
+});
+
+test('乙更新或删除甲的信息被服务端拒绝', async t => {
+  const app = await fixture(t);
+  const a = app.client();
+  const b = app.client();
+  const record = (await a.request('/api/posts', { method: 'POST', data: input() })).result.post;
+  assert.equal((await b.request('/api/posts/' + record.id, { method: 'PATCH', data: { status: '已找到' } })).status, 403);
+  assert.equal((await b.request('/api/posts/' + record.id, { method: 'DELETE' })).status, 403);
+  assert.equal((await a.request('/api/posts/' + record.id)).result.post.status, '寻找中');
+});
+
+test('请求伪造 ownerId、id 或签名 Cookie 不能冒充发布者', async t => {
+  const app = await fixture(t);
+  const a = app.client();
+  const b = app.client();
+  const owner = (await a.request('/api/session')).result.userId;
+  const record = (await a.request('/api/posts', { method: 'POST', data: input() })).result.post;
+  const other = (await b.request('/api/posts', { method: 'POST', data: input({ ownerId: owner, id: record.id, status: '已找到' }) })).result.post;
+  assert.notEqual(other.ownerId, owner);
+  assert.notEqual(other.id, record.id);
+  assert.equal(other.status, '寻找中');
+  b.cookie = 'campus-publisher=' + owner + '.' + 'a'.repeat(43);
+  assert.equal((await b.request('/api/posts/' + record.id, { method: 'DELETE' })).status, 403);
+});
+
+for (const [type, status] of [['lost', '已找到'], ['found', '已归还']]) {
+  test('本人结束' + type + '后，其他发布者看到' + status + '，重复或跨类型更新被拒绝', async t => {
+    const app = await fixture(t);
+    const a = app.client();
+    const b = app.client();
+    const record = (await a.request('/api/posts', { method: 'POST', data: input({ type }) })).result.post;
+    const route = '/api/posts/' + record.id;
+    const wrong = status === '已找到' ? '已归还' : '已找到';
+    assert.equal((await a.request(route, { method: 'PATCH', data: { status: wrong } })).status, 409);
+    assert.equal((await a.request(route, { method: 'PATCH', data: { status } })).status, 200);
+    assert.equal((await b.request(route)).result.post.status, status);
+    assert.equal((await a.request(route, { method: 'PATCH', data: { status } })).status, 409);
+  });
+}
+
+test('服务重启后，信息和原 Cookie 的所有者关系仍保持', async t => {
+  const app = await fixture(t);
+  const a = app.client();
+  const record = (await a.request('/api/posts', { method: 'POST', data: input() })).result.post;
+  await app.stop();
+  await app.start();
+  assert.equal((await a.request('/api/my-posts')).result.posts[0].id, record.id);
+  assert.equal((await a.request('/api/posts/' + record.id, { method: 'DELETE' })).status, 200);
+  assert.deepEqual((await a.request('/api/posts')).result.posts, []);
+});
+
+test('并发发布不会相互覆盖，也不会重复 ID', async t => {
+  const app = await fixture(t);
+  const a = app.client();
+  await a.request('/api/session');
+  const results = await Promise.all(Array.from({ length: 10 }, (_, i) => a.request('/api/posts', { method: 'POST', data: input({ name: '并发雨伞' + i }) })));
+  assert.ok(results.every(item => item.status === 201));
+  const records = (await a.request('/api/posts')).result.posts;
+  assert.equal(records.length, 10);
+  assert.equal(new Set(records.map(item => item.id)).size, 10);
+});
+
+test('损坏或非数组数据阻止接口读写，原始文件保留', async t => {
+  const app = await fixture(t);
+  const a = app.client();
+  for (const raw of ['{broken', '{}', '[null]']) {
+    fs.writeFileSync(path.join(app.dataDir, 'posts.json'), raw);
+    assert.equal((await a.request('/api/posts')).status, 503);
+    assert.equal((await a.request('/api/posts', { method: 'POST', data: input() })).status, 503);
+    assert.equal(fs.readFileSync(path.join(app.dataDir, 'posts.json'), 'utf8'), raw);
+  }
+});
+
+test('磁盘写入失败时接口失败，旧数据没有被替换', async t => {
+  const app = await fixture(t);
+  const a = app.client();
+  const record = (await a.request('/api/posts', { method: 'POST', data: input() })).result.post;
+  const filename = path.join(app.dataDir, 'posts.json');
+  const raw = fs.readFileSync(filename, 'utf8');
+  const rename = fs.renameSync;
+  fs.renameSync = (from, to) => { if (to === filename) throw new Error('Disk full'); return rename(from, to); };
+  try {
+    assert.equal((await a.request('/api/posts', { method: 'POST', data: input() })).status, 503);
+    assert.equal((await a.request('/api/posts/' + record.id, { method: 'PATCH', data: { status: '已找到' } })).status, 503);
+    assert.equal((await a.request('/api/posts/' + record.id, { method: 'DELETE' })).status, 503);
+    assert.equal(fs.readFileSync(filename, 'utf8'), raw);
+    assert.deepEqual(fs.readdirSync(app.dataDir).sort(), ['posts.json', 'session.key']);
+  } finally { fs.renameSync = rename; }
+});
+
+test('缺参、非法 JSON、错误内容类型、过大请求和跨站写入均被拒绝', async t => {
+  const app = await fixture(t);
+  const a = app.client();
+  assert.equal((await a.request('/api/posts', { method: 'POST', data: input({ name: '' }) })).status, 400);
+  assert.equal((await a.request('/api/posts', { method: 'POST', body: '{broken', headers: { 'Content-Type': 'application/json' } })).status, 400);
+  assert.equal((await a.request('/api/posts', { method: 'POST', body: 'text' })).status, 415);
+  assert.equal((await a.request('/api/posts', { method: 'POST', data: { desc: 'a'.repeat(20000) } })).status, 413);
+  assert.equal((await a.request('/api/posts', { method: 'POST', data: input(), headers: { Origin: 'https://example.com' } })).status, 403);
+  assert.deepEqual((await a.request('/api/posts')).result.posts, []);
+});
+
+test('静态入口可访问，运行配置启用后端，数据、密钥与源码配置不公开', async t => {
+  const app = await fixture(t);
+  assert.equal((await fetch(app.base + '/')).status, 200);
+  assert.equal(await (await fetch(app.base + '/js/runtime-config.js')).text(), 'window.CAMPUS_BACKEND = true;');
+  for (const route of ['/data/posts.json', '/data/session.key', '/server.cjs', '/README.md', '/.git/config']) assert.equal((await fetch(app.base + route)).status, 404);
+  assert.equal((await app.client().request('/api/posts/missing')).status, 404);
+});
