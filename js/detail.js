@@ -8,7 +8,7 @@
   function backRoute(from) {
     if (typeof from !== 'string') return 'home';
     const page = from.split('?')[0];
-    return page === 'home' || page === 'search' ? from : 'home';
+    return ['home', 'search', 'my'].includes(page) ? from : 'home';
   }
 
   async function copyText(text, clipboard) {

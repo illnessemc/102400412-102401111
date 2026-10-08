@@ -160,9 +160,11 @@ test('缺少或损坏的时间不会导致详情渲染报错', () => {
   assert.equal(Posts.displayTime('not-a-date'), '时间格式异常');
 });
 
-test('详情返回路径保留搜索条件，拒绝其他页面或外部地址', () => {
+test('详情返回路径保留搜索及我的筛选条件，拒绝其他页面或外部地址', () => {
   assert.equal(Detail.backRoute('search?keyword=%E9%9B%A8%E4%BC%9E&finished=1'), 'search?keyword=%E9%9B%A8%E4%BC%9E&finished=1');
   assert.equal(Detail.backRoute('home?type=found'), 'home?type=found');
+  assert.equal(Detail.backRoute('my'), 'my');
+  assert.equal(Detail.backRoute('my?filter=finished'), 'my?filter=finished');
   for (const from of [null, 'https://example.com', 'javascript:alert(1)', 'detail?id=1']) assert.equal(Detail.backRoute(from), 'home');
 });
 

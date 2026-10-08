@@ -52,7 +52,6 @@
     const separator = route.indexOf('?');
     const page = separator < 0 ? route : route.slice(0, separator);
     const params = new URLSearchParams(separator < 0 ? '' : route.slice(separator + 1));
-    // ↓ 白名单加入 publish / success / my
     if (!['home', 'search', 'detail', 'publish', 'success', 'my'].includes(page)) { navigate('home'); return; }
     let storage;
     try { storage = window.localStorage; } catch (error) { storage = null; }
@@ -70,10 +69,9 @@
     if (page === 'home') CampusHome.render(data.posts, params);
     if (page === 'search') CampusSearch.render(data.posts, params);
     if (page === 'detail') CampusDetail.render(data.posts, params, data.source === 'demo');
-    // ↓ 新增三个页面的渲染调用
-    if (page === 'publish') { const area = document.getElementById('publish-form-area'); if (area && window.PublishModule) window.PublishModule.render(area); }
-    if (page === 'success') { const content = document.getElementById('success-content'); if (content && window.PublishModule) window.PublishModule.renderSuccess(content, params); }
-    if (page === 'my') { const list = document.getElementById('my-list'); if (list && window.MyModule) window.MyModule.render(list); }
+    if (page === 'publish') PublishModule.render(document.getElementById('publish-form-area'), params);
+    if (page === 'success') PublishModule.renderSuccess(document.getElementById('success-content'), params);
+    if (page === 'my') MyModule.render(document.getElementById('my-list'), params);
     const titles = { home: '首页', search: '搜索物品', detail: '信息详情', publish: '发布信息', success: '发布成功', my: '我的发布' };
     document.title = (titles[page] || '') + ' · 校园失物招领';
   }
@@ -87,10 +85,9 @@
     toastTimer = setTimeout(function () { node.hidden = true; }, 4000);
   }
 
-  // 首页快捷按钮绑定
   document.addEventListener('click', function (e) {
     const btn = e.target.closest('[data-publish-type]');
-    if (btn) { location.hash = '#publish'; }
+    if (btn) navigate('publish?type=' + btn.dataset.publishType);
   });
 
   window.CampusUI = { element, navigate, setCategories, renderList, toast };
@@ -102,7 +99,7 @@
   });
   window.addEventListener('campus:posts-changed', renderRoute);
   window.addEventListener('storage', function (event) {
-    if (event.key === CampusPosts.STORAGE_KEY || event.key === null) renderRoute();
+    if (event.key === CampusPosts.STORAGE_KEY || event.key === CampusManage.USER_KEY || event.key === null) renderRoute();
   });
   renderRoute();
 })();

@@ -1,140 +1,110 @@
 (function () {
+  'use strict';
+
   function finishStatus(post) {
     return post.type === 'lost' ? '已找到' : '已归还';
   }
 
-  function renderStats(container) {
-    const result = window.CampusManage.getMyPosts();
-    if (!result.ok) { CampusUI.toast(result.errors.join(' ')); return; }
-    const posts = result.posts;
-    const total = posts.length;
-    const ongoing = posts.filter(p => p.status !== '已找到' && p.status !== '已归还').length;
-    const finished = total - ongoing;
-    const statsEl = container.querySelector('#my-stats');
-    if (statsEl) {
-      statsEl.innerHTML = `
-        <div style="background:#e3f2fd;padding:12px;border-radius:8px;flex:1;min-width:100px;text-align:center;">
-          <div style="font-size:24px;font-weight:bold;">${total}</div><div style="font-size:12px;color:#666;">全部</div>
-        </div>
-        <div style="background:#fff3e0;padding:12px;border-radius:8px;flex:1;min-width:100px;text-align:center;">
-          <div style="font-size:24px;font-weight:bold;">${ongoing}</div><div style="font-size:12px;color:#666;">进行中</div>
-        </div>
-        <div style="background:#e8f5e9;padding:12px;border-radius:8px;flex:1;min-width:100px;text-align:center;">
-          <div style="font-size:24px;font-weight:bold;">${finished}</div><div style="font-size:12px;color:#666;">已结束</div>
-        </div>
-      `;
+  function renderCard(post, from) {
+    const el = CampusUI.element;
+    const done = CampusPosts.isFinished(post);
+    const card = el('div', 'my-card' + (done ? ' finished' : ''));
+    const heading = el('div', 'card-title-row');
+    heading.append(el('strong', 'card-title', post.name), el('span', 'badge ' + (done ? 'done' : post.type), post.status));
+    const meta = el('p', 'meta', post.place + ' · ' + CampusPosts.displayTime(post.time));
+    const actions = el('div', 'form-actions');
+    const detail = el('a', 'back-link', '查看详情');
+    detail.href = '#detail?' + new URLSearchParams({ id: String(post.id), from }).toString();
+    actions.append(detail);
+    if (!done) {
+      const finish = el('button', 'filter-button', '标记为' + finishStatus(post));
+      finish.type = 'button';
+      finish.dataset.action = 'finish';
+      finish.dataset.id = post.id;
+      actions.append(finish);
     }
-  }
-
-  function renderCard(post) {
-    const done = post.status === '已找到' || post.status === '已归还';
-    const card = document.createElement('div');
-    card.className = 'my-card';
-    card.dataset.id = post.id;
-    card.style.cssText = "border:1px solid #ddd;border-radius:8px;padding:12px;margin-bottom:12px;background:" + (done ? '#f5f5f5' : '#fff') + ";";
-    card.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">
-        <strong style="font-size:16px;">${post.name}</strong>
-        <span style="background:${done ? '#ccc' : (post.type==='lost' ? '#ffebee' : '#e8f5e9')};padding:2px 8px;border-radius:12px;font-size:12px;">${post.status}</span>
-      </div>
-      <p style="margin:4px 0;color:#666;font-size:14px;">${post.place} · ${post.time}</p>
-      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
-        <a href="#detail?id=${encodeURIComponent(post.id)}&from=my" style="padding:4px 10px;background:#eee;border-radius:4px;text-decoration:none;font-size:13px;">查看详情</a>
-        ${done ? '' : `<button data-action="finish" data-id="${post.id}" style="padding:4px 10px;background:#4caf50;color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer;">标记为${finishStatus(post)}</button>`}
-        <button data-action="delete" data-id="${post.id}" style="padding:4px 10px;background:#f44336;color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer;">删除</button>
-      </div>
-    `;
+    const remove = el('button', 'text-button danger-button', '删除');
+    remove.type = 'button';
+    remove.dataset.action = 'delete';
+    remove.dataset.id = post.id;
+    actions.append(remove);
+    card.append(heading, meta, actions);
     return card;
   }
 
-  function render(container) {
-    const result = window.CampusManage.getMyPosts();
-    if (!result.ok) { container.textContent = result.errors.join(' '); return; }
-    const posts = result.posts;
-    container.innerHTML = `
-      <div id="my-stats" style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;"></div>
-      <div style="margin-bottom:12px;">
-        <label>筛选：
-          <select id="my-filter" style="padding:4px 8px;border:1px solid #ddd;border-radius:4px;">
-            <option value="all">全部</option>
-            <option value="ongoing">进行中</option>
-            <option value="finished">已结束</option>
-          </select>
-        </label>
-      </div>
-      <div id="my-cards"></div>
-    `;
-
-    renderStats(container);
-
-    const cardsBox = container.querySelector('#my-cards');
-    if (posts.length === 0) {
-      cardsBox.innerHTML = '<p style="text-align:center;color:#999;padding:32px;">暂无发布记录，<a href="#publish">去发布第一条</a></p>';
-    } else {
-      posts.forEach(p => cardsBox.appendChild(renderCard(p)));
-    }
-
-    // 筛选
-    const filterSel = container.querySelector('#my-filter');
-    filterSel.addEventListener('change', function () {
-      const cards = cardsBox.querySelectorAll('.my-card');
-      cards.forEach(card => {
-        const id = card.dataset.id;
-        const post = window.CampusManage.getPostById(id).post;
-        if (!post) return;
-        const isDone = post.status === '已找到' || post.status === '已归还';
-        const val = filterSel.value;
-        const show = val === 'all' || (val === 'ongoing' && !isDone) || (val === 'finished' && isDone);
-        card.style.display = show ? '' : 'none';
-      });
+  function bindActions(container) {
+    if (container.dataset.initialized) return;
+    container.dataset.initialized = '1';
+    container.addEventListener('change', function (event) {
+      if (event.target.id !== 'my-filter') return;
+      const filter = event.target.value;
+      CampusUI.navigate(filter === 'all' ? 'my' : 'my?filter=' + filter);
     });
-
-    // 操作按钮（防连点 + 局部更新）
-    container.addEventListener('click', function (e) {
-      const btn = e.target.closest('button[data-action]');
-      if (!btn) return;
-      if (btn.dataset.loading === '1') return; // 防连点锁
-
-      const action = btn.dataset.action;
-      const id = btn.dataset.id;
-      const card = cardsBox.querySelector('.my-card[data-id="' + id + '"]');
-      const found = window.CampusManage.getPostById(id);
-      if (!found.ok) { alert(found.errors.join('\n')); return; }
-      const post = found.post;
-      if (!post) return;
-
-      if (action === 'finish') {
-        const newStatus = post.type === 'lost' ? '已找到' : '已归还';
-        if (!confirm('确定标记为' + newStatus + '吗？')) return;
-        btn.dataset.loading = '1';
-        const r = window.CampusManage.updateStatus(id, newStatus);
-        if (!r.ok) {
-          alert(r.errors.join('\n'));
-          btn.dataset.loading = '0';
-          return;
-        }
-        window.dispatchEvent(new Event('campus:posts-changed'));
-        // 局部替换卡片，不整体重绘，避免弹窗异常
-        const newPost = window.CampusManage.getPostById(id).post;
-        if (card && newPost) card.replaceWith(renderCard(newPost));
-        renderStats(container);
-      } else if (action === 'delete') {
-        if (!confirm('确定删除这条发布吗？')) return;
-        btn.dataset.loading = '1';
-        const r2 = window.CampusManage.deletePost(id);
-        if (!r2.ok) {
-          alert(r2.errors.join('\n'));
-          btn.dataset.loading = '0';
-          return;
-        }
-        window.dispatchEvent(new Event('campus:posts-changed'));
-        if (card) card.remove();
-        renderStats(container);
-        // 若删光了整体重绘显示空状态
-        if (window.CampusManage.getMyPosts().posts.length === 0) render(container);
+    container.addEventListener('click', function (event) {
+      const button = event.target.closest('button[data-action]');
+      if (!button || button.disabled) return;
+      const result = CampusManage.getPostById(button.dataset.id);
+      if (!result.ok) { CampusUI.toast(result.errors.join(' ')); return; }
+      if (!result.post) { CampusUI.toast('这条信息不存在或已被删除'); return; }
+      const deleting = button.dataset.action === 'delete';
+      if (!confirm(deleting ? '确定删除这条发布吗？' : '确定标记为' + finishStatus(result.post) + '吗？')) return;
+      button.disabled = true;
+      const saved = deleting ? CampusManage.deletePost(result.post.id) : CampusManage.updateStatus(result.post.id, finishStatus(result.post));
+      if (!saved.ok) {
+        button.disabled = false;
+        CampusUI.toast(saved.errors.join(' '));
+        return;
       }
+      window.dispatchEvent(new Event('campus:posts-changed'));
+      CampusUI.toast(deleting ? '发布记录已删除' : '状态已更新为' + finishStatus(result.post));
     });
   }
 
-  window.MyModule = { render: render };
+  function render(container, params) {
+    bindActions(container);
+    const el = CampusUI.element;
+    container.replaceChildren();
+    const result = CampusManage.getMyPosts();
+    if (!result.ok) {
+      const errorNote = el('p', 'form-error', result.errors.join(' '));
+      errorNote.setAttribute('role', 'alert');
+      container.append(errorNote);
+      return;
+    }
+    const posts = result.posts;
+    const ongoing = posts.filter(post => !CampusPosts.isFinished(post)).length;
+    const stats = el('div', 'my-stats');
+    stats.id = 'my-stats';
+    [['全部', posts.length], ['进行中', ongoing], ['已结束', posts.length - ongoing]].forEach(function ([label, count]) {
+      const item = el('div', 'stat-card');
+      item.append(el('strong', '', String(count)), el('span', '', label));
+      stats.append(item);
+    });
+    const filter = ['ongoing', 'finished'].includes(params.get('filter')) ? params.get('filter') : 'all';
+    const filterLabel = el('label', 'my-filter-label', '筛选发布记录');
+    filterLabel.htmlFor = 'my-filter';
+    const select = el('select', '');
+    select.id = 'my-filter';
+    [['all', '全部'], ['ongoing', '进行中'], ['finished', '已结束']].forEach(([value, label]) => select.add(new Option(label, value)));
+    select.value = filter;
+    filterLabel.append(select);
+    const cards = el('div', 'my-cards');
+    cards.id = 'my-cards';
+    const visible = posts.filter(post => filter === 'all' || (filter === 'finished' ? CampusPosts.isFinished(post) : !CampusPosts.isFinished(post)));
+    const from = filter === 'all' ? 'my' : 'my?filter=' + filter;
+    if (!visible.length) {
+      const empty = el('div', 'empty');
+      empty.append(el('h2', '', posts.length ? '当前筛选下暂无记录' : '你还没有发布信息'));
+      if (posts.length) empty.append(el('p', '', '切换筛选条件，查看其他发布记录。'));
+      else {
+        const publish = el('a', 'back-link', '发布第一条信息');
+        publish.href = '#publish';
+        empty.append(publish);
+      }
+      cards.append(empty);
+    } else visible.forEach(post => cards.append(renderCard(post, from)));
+    container.append(stats, filterLabel, cards);
+  }
+
+  window.MyModule = { render };
 })();

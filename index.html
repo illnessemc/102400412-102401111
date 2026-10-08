@@ -5,16 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>校园失物招领</title>
   <link rel="stylesheet" href="css/app.css">
-  <!-- 队友原有脚本（顺序不变） -->
   <script defer src="js/posts.js"></script>
   <script defer src="js/home.js"></script>
   <script defer src="js/search.js"></script>
   <script defer src="js/detail.js"></script>
-  <script defer src="js/app.js"></script>
-  <!-- 交接新增：你的业务逻辑脚本 -->
   <script defer src="js/manage.js"></script>
   <script defer src="js/publish.js"></script>
   <script defer src="js/my.js"></script>
+  <script defer src="js/app.js"></script>
 </head>
 <body>
   <div class="app-shell">
@@ -31,7 +29,6 @@
           <a class="search-entry" href="#search"><span aria-hidden="true">⌕</span> 搜索校园卡、钥匙、雨伞等物品</a>
         </div>
         <div class="quick-actions">
-          <!-- 交接改动：移除 disabled 和“暂未开放”文案 -->
           <button class="quick lost" type="button" data-publish-type="lost">
             <strong>🔎 我丢了东西</strong><span>发布寻物</span>
           </button>
@@ -97,24 +94,22 @@
         </div>
         <div id="detail-content" class="detail-content"></div>
       </section>
-      <!-- 交接新增：你的三个功能页面节点 -->
-      <section id="page-publish" class="page" hidden>
-        <h2>发布信息</h2>
-        <div id="publish-form-area"></div>
+      <section id="page-publish" class="page" hidden aria-labelledby="publish-heading">
+        <div class="hero"><h1 id="publish-heading">发布信息</h1><p>填写物品特征和联系方式，让同学更容易找到你。</p></div>
+        <div id="publish-form-area" class="section"></div>
       </section>
-      <section id="page-success" class="page" hidden>
-        <h2>发布成功</h2>
-        <div id="success-content"></div>
+      <section id="page-success" class="page" hidden aria-labelledby="success-heading">
+        <div class="hero"><h1 id="success-heading">发布结果</h1></div>
+        <div id="success-content" class="section"></div>
       </section>
-      <section id="page-my" class="page" hidden>
-        <h2>我的发布</h2>
-        <div id="my-list"></div>
+      <section id="page-my" class="page" hidden aria-labelledby="my-heading">
+        <div class="hero"><h1 id="my-heading">我的发布</h1><p>查看你的发布记录，物品找到或归还后及时更新状态。</p></div>
+        <div id="my-list" class="section"></div>
       </section>
     </main>
     <nav class="bottom-nav" aria-label="主要导航">
       <a class="nav-link active" href="#home" data-page="home" aria-current="page"><b aria-hidden="true">⌂</b>首页</a>
       <a class="nav-link" href="#search" data-page="search"><b aria-hidden="true">⌕</b>搜索</a>
-      <!-- 交接改动：改为可点击链接，移除 disabled -->
       <a class="nav-link" href="#publish" data-page="publish"><b aria-hidden="true">＋</b>发布</a>
       <a class="nav-link" href="#my" data-page="my"><b aria-hidden="true">◎</b>我的</a>
     </nav>
