@@ -251,6 +251,22 @@ async function browserScenarios() {
       expect(nav.bottom <= page.innerHeight + 1 && nav.top >= 0, route + '导航不在视口');
     }
   });
+  await scenario('宽屏侧边导航与分组表单正常，跳到内容不改变当前路由', async () => {
+    frame.style.width = '1440px';
+    await go('publish');
+    const nav = page.document.querySelector('.bottom-nav').getBoundingClientRect();
+    const main = page.document.querySelector('#main-content').getBoundingClientRect();
+    const form = page.document.querySelector('#pub-form').getBoundingClientRect();
+    const tips = page.document.querySelector('.publish-layout .context-card').getBoundingClientRect();
+    expect(main.left >= nav.right - 1, '宽屏导航没有在内容左侧');
+    expect(tips.left >= form.right, '发布提示没有在表单右侧');
+    expect(page.document.documentElement.scrollWidth <= page.innerWidth, '宽屏发布横向溢出');
+    const route = page.location.hash;
+    page.document.querySelector('.skip-link').click();
+    expect(page.location.hash === route, '跳到内容误触发路由');
+    expect(page.document.activeElement.id === 'main-content', '焦点没有进入主要内容');
+    expect(page.document.querySelector('a.nav-link[aria-current="page"]').dataset.page === 'publish', '侧边导航选中错误');
+  });
   document.querySelector('#results').textContent = btoa(unescape(encodeURIComponent(JSON.stringify(results))));
   document.querySelector('#results').dataset.complete = '1';
 }
@@ -293,7 +309,7 @@ test('Chrome 页面回归', { timeout: 60000 }, async t => {
     const results = JSON.parse(Buffer.from(match[1], 'base64').toString('utf8'));
     if (process.env.CAMPUS_TEST_ARTIFACT_DIR) await fs.writeFile(path.join(process.env.CAMPUS_TEST_ARTIFACT_DIR, 'browser-results.json'), JSON.stringify(results, null, 2));
     for (const result of results) await t.test(result.name, () => assert.equal(result.ok, true, result.error));
-    assert.equal(results.length, 20, '浏览器场景未全部执行');
+    assert.equal(results.length, 21, '浏览器场景未全部执行');
   } finally {
     await new Promise(resolve => server.close(resolve));
     const target = path.resolve(profile);

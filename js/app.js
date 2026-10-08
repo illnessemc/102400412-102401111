@@ -57,8 +57,9 @@
     const params = new URLSearchParams(separator < 0 ? '' : route.slice(separator + 1));
     if (!['home', 'search', 'detail', 'publish', 'success', 'my'].includes(page)) { navigate('home'); return; }
     document.querySelectorAll('.page').forEach(section => { section.hidden = section.id !== 'page-' + page; });
+    const navigationPage = page === 'success' ? 'publish' : page === 'detail' ? CampusDetail.backRoute(params.get('from')).split('?')[0] : page;
     document.querySelectorAll('a.nav-link').forEach(function (link) {
-      const active = link.dataset.page === page;
+      const active = link.dataset.page === navigationPage;
       link.classList.toggle('active', active);
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
@@ -98,6 +99,11 @@
   }
 
   document.addEventListener('click', function (e) {
+    if (e.target.closest('.skip-link')) {
+      e.preventDefault();
+      document.getElementById('main-content').focus();
+      return;
+    }
     const btn = e.target.closest('[data-publish-type]');
     if (btn) navigate('publish?type=' + btn.dataset.publishType);
   });
