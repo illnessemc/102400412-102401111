@@ -39,13 +39,15 @@ async function sharedScenarios(mode) {
 
   if (mode === 'demo') {
     await load('home');
-    await check('共享预置演示可浏览和搜索，手机号标签及警告明确，本人列表不认领演示', async () => {
+    await check('预置信息使用普通卡片和联系提示，类型明确且本人列表不认领', async () => {
       expect(page.document.querySelectorAll('#home-list .card').length === 6, '进行中演示数量错误');
-      expect(page.document.querySelectorAll('#home-list .badge.demo').length === 6, '演示标识缺失');
+      expect(!page.document.querySelector('#page-home').textContent.includes('演示'), '预置信息仍带演示标签');
+      expect(!page.document.querySelector('#source-note').textContent.includes('演示'), '顶部仍有演示提示');
       await go('search?keyword=' + encodeURIComponent('高等数学'));
       page.document.querySelector('#search-list .card').click();
       await until(() => page.document.querySelector('[aria-controls="contact-panel"]'));
-      expect(page.document.querySelector('#detail-content').textContent.includes('请勿联系'), '演示详情无警告');
+      expect(!page.document.querySelector('#detail-content').textContent.includes('演示'), '详情仍带演示标签');
+      expect(page.document.querySelector('#detail-content').textContent.includes('先核对时间'), '缺少正常联系提示');
       page.document.querySelector('[aria-controls="contact-panel"]').click();
       expect(page.document.querySelector('#contact-kind').textContent === '手机号', '手机号类型不明确');
       expect(page.document.querySelector('#contact-value').value === '00000000000', '演示号码错误');

@@ -78,7 +78,7 @@
     const data = readStoredPosts(storage);
     if (data.ok && !data.missing) return { posts: data.posts, source: 'local', error: '' };
     const posts = DEMO_POSTS.map(post => ({ ...post }));
-    return { posts, source: 'demo', error: data.ok ? '' : data.error + ' 当前显示演示信息。' };
+    return { posts, source: 'demo', error: data.ok ? '' : data.error + ' 当前显示预置信息。' };
   }
 
   function categories(posts) {

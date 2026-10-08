@@ -21,7 +21,7 @@
     }
   }
 
-  function render(posts, params, isDemo) {
+  function render(posts, params) {
     const el = CampusUI.element;
     const container = document.getElementById('detail-content');
     container.replaceChildren();
@@ -36,14 +36,12 @@
       container.append(empty);
       return;
     }
-    isDemo = isDemo || post.isDemo === true;
 
     const layout = el('div', 'detail-layout');
     const cover = el('div', 'detail-cover', CampusPosts.iconFor(post));
     cover.setAttribute('aria-hidden', 'true');
     const info = el('div', 'detail-card');
     info.append(el('span', 'badge ' + post.type, post.type === 'lost' ? '寻物信息' : '招领信息'));
-    if (isDemo) info.append(el('span', 'badge demo', '演示信息'));
     info.append(el('h2', 'detail-title', post.name));
     info.append(el('span', 'badge ' + (CampusPosts.isFinished(post) ? 'done' : post.type), post.status));
     const grid = el('dl', 'detail-grid');
@@ -71,7 +69,7 @@
     if (!contact) {
       contactCard.append(el('p', 'contact-note', '发布者暂未提供联系方式。'));
     } else {
-      contactCard.append(el('p', 'contact-note', isDemo ? '以下为演示联系方式，仅用于操作体验，请勿联系示例账号。' : '先核对时间、地点和物品特征，再使用发布者提供的联系方式联系。'));
+      contactCard.append(el('p', 'contact-note', '先核对时间、地点和物品特征，再使用发布者提供的联系方式联系。'));
       const reveal = el('button', 'filter-button', '查看联系方式');
       reveal.type = 'button';
       reveal.setAttribute('aria-expanded', 'false');
