@@ -3,11 +3,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const Manage = require('./js/manage.js');
+const Posts = require('./js/posts.js');
 
 const COOKIE = 'campus-publisher';
 const ASSETS = new Set(['/index.html', '/css/app.css', ...['posts', 'manage', 'home', 'search', 'detail', 'publish', 'my', 'app', 'api'].map(name => '/js/' + name + '.js')]);
 
-function createAppHandler({ dataDir = path.join(__dirname, 'data') } = {}) {
+function createAppHandler({ dataDir = path.join(__dirname, 'data'), seedDemo = true } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const recordsPath = path.join(dataDir, 'posts.json');
   const secretPath = path.join(dataDir, 'session.key');
@@ -56,6 +57,21 @@ function createAppHandler({ dataDir = path.join(__dirname, 'data') } = {}) {
         }
       }
     };
+  }
+
+  // Only initialize missing data by default. Explicit append preserves existing
+  // records, makes a backup, and never duplicates an existing demo ID.
+  if (seedDemo) {
+    const store = storeFor('demo-seed');
+    const current = Posts.readStoredPosts(store);
+    if (current.missing || seedDemo === 'append') {
+      if (!current.ok) throw new Error('演示信息未导入：数据格式异常，原有文件未被改动。');
+      const additions = Posts.DEMO_POSTS.filter(post => !Posts.findPost(current.posts, post.id));
+      if (additions.length) {
+        if (!current.missing) fs.copyFileSync(recordsPath, path.join(dataDir, 'posts.backup-' + crypto.randomUUID() + '.json'), fs.constants.COPYFILE_EXCL);
+        store.setItem(Manage.POSTS_KEY, JSON.stringify([...current.posts, ...additions]));
+      }
+    }
   }
 
   function json(res, status, result) {
@@ -157,7 +173,7 @@ if (require.main === module) {
   const host = process.env.CAMPUS_HOST || '127.0.0.1';
   const port = Number(process.env.CAMPUS_PORT || 3000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('CAMPUS_PORT 必须是 1 到 65535 的整数。');
-  const server = http.createServer(createAppHandler());
+  const server = http.createServer(createAppHandler({ seedDemo: process.argv.includes('--seed-demo') ? 'append' : true }));
   server.on('error', error => { console.error('启动失败：' + error.message); process.exitCode = 1; });
   server.listen(port, host, () => console.log('校园失物招领已启动：http://' + (host === '0.0.0.0' ? 'localhost' : host) + ':' + port));
 }

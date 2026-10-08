@@ -40,6 +40,7 @@
       const statusClass = CampusPosts.isFinished(post) ? 'done' : post.type;
       titleRow.append(element('span', 'card-title', post.name), element('span', 'badge ' + statusClass, post.status));
       const meta = element('div', 'meta');
+      if (post.isDemo === true) meta.append(element('span', 'badge demo', '演示'));
       meta.append(element('span', '', '📍 ' + post.place), element('span', '', '🕒 ' + CampusPosts.displayTime(post.time)), element('span', '', post.type === 'lost' ? '寻物' : '招领'));
       main.append(titleRow, element('p', 'desc', post.desc), meta);
       card.append(thumb, main);
@@ -78,6 +79,7 @@
     note.classList.toggle('warning', Boolean(data.error));
     note.textContent = data.error || (data.source === 'server' ? '校园共享模式：使用同一服务的同学可以查看发布的信息。' :
       data.source === 'demo' ? '本机模式：当前显示演示信息，请勿联系示例账号。' : '本机模式：信息只保存在当前浏览器。');
+    if (!data.error && data.source === 'server' && data.posts.some(post => post.isDemo === true)) note.textContent += ' 标有“演示”的记录为预置样例，请勿联系示例账号。';
     if (page === 'home') CampusHome.render(data.posts, params);
     if (page === 'search') CampusSearch.render(data.posts, params);
     if (page === 'detail') CampusDetail.render(data.posts, params, data.source === 'demo');

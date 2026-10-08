@@ -36,12 +36,14 @@
       container.append(empty);
       return;
     }
+    isDemo = isDemo || post.isDemo === true;
 
     const layout = el('div', 'detail-layout');
     const cover = el('div', 'detail-cover', CampusPosts.iconFor(post));
     cover.setAttribute('aria-hidden', 'true');
     const info = el('div', 'detail-card');
     info.append(el('span', 'badge ' + post.type, post.type === 'lost' ? '寻物信息' : '招领信息'));
+    if (isDemo) info.append(el('span', 'badge demo', '演示信息'));
     info.append(el('h2', 'detail-title', post.name));
     info.append(el('span', 'badge ' + (CampusPosts.isFinished(post) ? 'done' : post.type), post.status));
     const grid = el('dl', 'detail-grid');

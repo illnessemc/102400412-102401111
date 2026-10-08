@@ -10,12 +10,12 @@ function input(fields = {}) {
   return { type: 'lost', name: '共享测试雨伞', category: '雨伞', place: '图书馆', time: '2026-10-08T09:00', desc: '黑色银柄', contactType: 'wechat', contact: 'TEST_CONTACT', ...fields };
 }
 
-async function fixture(t) {
+async function fixture(t, seedDemo = false) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'campus-server-'));
   let server;
   let base;
   async function start() {
-    server = http.createServer(createAppHandler({ dataDir }));
+    server = http.createServer(createAppHandler({ dataDir, seedDemo }));
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     base = 'http://127.0.0.1:' + server.address().port;
   }
@@ -55,6 +55,69 @@ test('共享服务启动时为空，发布者身份保存在 HttpOnly 签名 Coo
   assert.match(session.headers.get('set-cookie'), /HttpOnly; SameSite=Lax/);
   assert.equal((await a.request('/api/session')).result.userId, session.result.userId);
   assert.deepEqual((await a.request('/api/posts')).result.posts, []);
+});
+
+test('新数据目录预置 8 条演示，覆盖两类信息、结束状态与三类联系方式', async t => {
+  const app = await fixture(t, true);
+  const a = app.client();
+  const records = (await a.request('/api/posts')).result.posts;
+  assert.equal(records.length, 8);
+  assert.ok(records.every(post => post.isDemo === true && !post.ownerId));
+  assert.deepEqual(new Set(records.map(post => post.type)), new Set(['lost', 'found']));
+  assert.deepEqual(new Set(records.map(post => post.contactType)), new Set(['wechat', 'qq', 'phone']));
+  assert.equal(records.filter(post => !['已找到', '已归还'].includes(post.status)).length, 6);
+  assert.deepEqual((await a.request('/api/my-posts')).result.posts, []);
+  assert.equal((await a.request('/api/posts/demo-1', { method: 'DELETE' })).status, 403);
+  await a.request('/api/posts', { method: 'POST', data: input({ isDemo: true }) });
+  await app.stop();
+  await app.start();
+  assert.equal((await a.request('/api/posts')).result.posts.length, 9);
+  assert.equal((await a.request('/api/my-posts')).result.posts[0].isDemo, undefined);
+});
+
+test('默认启动保留已有空数组或损坏文件，不重复注入或覆盖数据', async t => {
+  const app = await fixture(t, true);
+  const filename = path.join(app.dataDir, 'posts.json');
+  await app.stop();
+  for (const raw of ['[]', '{broken']) {
+    fs.writeFileSync(filename, raw);
+    await app.start();
+    assert.equal(fs.readFileSync(filename, 'utf8'), raw);
+    const response = await app.client().request('/api/posts');
+    assert.equal(response.status, raw === '[]' ? 200 : 503);
+    await app.stop();
+  }
+});
+
+test('显式追加演示保留本人信息并备份，重复追加不会重复记录', async t => {
+  const app = await fixture(t);
+  const a = app.client();
+  const record = (await a.request('/api/posts', { method: 'POST', data: input() })).result.post;
+  await app.stop();
+  const filename = path.join(app.dataDir, 'posts.json');
+  const raw = fs.readFileSync(filename, 'utf8');
+  createAppHandler({ dataDir: app.dataDir, seedDemo: 'append' });
+  const records = JSON.parse(fs.readFileSync(filename, 'utf8'));
+  assert.equal(records.length, 9);
+  assert.deepEqual(records[0], record);
+  const backups = fs.readdirSync(app.dataDir).filter(name => name.startsWith('posts.backup-'));
+  assert.equal(backups.length, 1);
+  assert.equal(fs.readFileSync(path.join(app.dataDir, backups[0]), 'utf8'), raw);
+  const seeded = fs.readFileSync(filename, 'utf8');
+  createAppHandler({ dataDir: app.dataDir, seedDemo: 'append' });
+  assert.equal(fs.readFileSync(filename, 'utf8'), seeded);
+  assert.equal(fs.readdirSync(app.dataDir).filter(name => name.startsWith('posts.backup-')).length, 1);
+  await app.start();
+  assert.deepEqual((await a.request('/api/my-posts')).result.posts, [record]);
+});
+
+test('显式追加遇到损坏文件时拒绝导入并保留原始数据', async t => {
+  const app = await fixture(t);
+  await app.stop();
+  const filename = path.join(app.dataDir, 'posts.json');
+  fs.writeFileSync(filename, '{broken');
+  assert.throws(() => createAppHandler({ dataDir: app.dataDir, seedDemo: 'append' }), /演示信息未导入/);
+  assert.equal(fs.readFileSync(filename, 'utf8'), '{broken');
 });
 
 test('甲发布，乙能浏览详情与联系方式，但我的发布按身份隔离', async t => {

@@ -37,7 +37,23 @@ async function sharedScenarios(mode) {
     catch (error) { results.push({ name, ok: false, error: error.message }); }
   }
 
-  if (mode === 'publish') {
+  if (mode === 'demo') {
+    await load('home');
+    await check('共享预置演示可浏览和搜索，手机号标签及警告明确，本人列表不认领演示', async () => {
+      expect(page.document.querySelectorAll('#home-list .card').length === 6, '进行中演示数量错误');
+      expect(page.document.querySelectorAll('#home-list .badge.demo').length === 6, '演示标识缺失');
+      await go('search?keyword=' + encodeURIComponent('高等数学'));
+      page.document.querySelector('#search-list .card').click();
+      await until(() => page.document.querySelector('[aria-controls="contact-panel"]'));
+      expect(page.document.querySelector('#detail-content').textContent.includes('请勿联系'), '演示详情无警告');
+      page.document.querySelector('[aria-controls="contact-panel"]').click();
+      expect(page.document.querySelector('#contact-kind').textContent === '手机号', '手机号类型不明确');
+      expect(page.document.querySelector('#contact-value').value === '00000000000', '演示号码错误');
+      await go('my');
+      await until(() => page.document.querySelector('#my-cards'));
+      expect(page.document.querySelectorAll('.my-card').length === 0, '误认领演示记录');
+    });
+  } else if (mode === 'publish') {
     await load('publish?type=found');
     await check('服务模式正确启用，首次为空且没有演示数据', async () => {
       expect(page.CampusApi.enabled, '服务模式未启用');
@@ -142,7 +158,8 @@ test('Chrome 两个独立发布者的共享流程', { timeout: 120000 }, async t
   try {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const all = [];
-    for (const [actor, mode] of [['a', 'publish'], ['b', 'view'], ['a', 'finish'], ['b', 'history'], ['a', 'delete']]) {
+    for (const [actor, mode] of [['b', 'demo'], ['a', 'publish'], ['b', 'view'], ['a', 'finish'], ['b', 'history'], ['a', 'delete']]) {
+      if (mode === 'publish') await fs.writeFile(path.join(directory, 'data', 'posts.json'), '[]');
       const output = await new Promise((resolve, reject) => {
         const args = ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--user-data-dir=' + path.join(directory, actor), '--virtual-time-budget=20000', '--window-size=1040,1000', '--dump-dom'];
         if (mode === 'publish' && process.env.CAMPUS_TEST_ARTIFACT_DIR) args.push('--screenshot=' + path.join(process.env.CAMPUS_TEST_ARTIFACT_DIR, 'shared-home.png'));
@@ -161,7 +178,7 @@ test('Chrome 两个独立发布者的共享流程', { timeout: 120000 }, async t
       all.push(...results);
       for (const result of results) await t.test(result.name, () => assert.equal(result.ok, true, result.error));
     }
-    assert.equal(all.length, 8);
+    assert.equal(all.length, 9);
     if (process.env.CAMPUS_TEST_ARTIFACT_DIR) {
       await fs.mkdir(process.env.CAMPUS_TEST_ARTIFACT_DIR, { recursive: true });
       await fs.writeFile(path.join(process.env.CAMPUS_TEST_ARTIFACT_DIR, 'shared-browser-results.json'), JSON.stringify(all, null, 2));
