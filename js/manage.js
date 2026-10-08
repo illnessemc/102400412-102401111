@@ -1,112 +1,132 @@
-(function () {
+(function (root, factory) {
+  const api = factory(typeof module === 'object' && module.exports ? require('./posts.js') : root.CampusPosts);
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.CampusManage = api;
+})(globalThis, function (Posts) {
   'use strict';
 
-  const POSTS_KEY = 'campus-lost-found.posts.v1';
+  const POSTS_KEY = Posts.STORAGE_KEY;
   const USER_KEY = 'campus-lost-found.user.v1';
 
-  function getUserId() {
-    let id = localStorage.getItem(USER_KEY);
-    if (!id) {
-      id = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-      localStorage.setItem(USER_KEY, id);
-    }
-    return id;
+  function failure(message) {
+    return { ok: false, errors: [message] };
   }
 
-  function readPosts() {
+  function storageFor(storage) {
+    return storage === undefined ? globalThis.localStorage : storage;
+  }
+
+  function getUserId(storage) {
     try {
-      const raw = localStorage.getItem(POSTS_KEY);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
+      const store = storageFor(storage);
+      let userId = store.getItem(USER_KEY);
+      if (typeof userId !== 'string' || !userId.trim()) {
+        userId = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+        store.setItem(USER_KEY, userId);
+      }
+      return { ok: true, userId };
+    } catch (error) {
+      return failure('无法读取或保存发布者身份，请检查浏览器存储权限后重试。');
     }
   }
 
-  function writePosts(posts) {
-    localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+  function readPosts(storage) {
+    let store;
+    try { store = storageFor(storage); } catch (error) { store = null; }
+    const data = Posts.readStoredPosts(store);
+    return data.ok ? { ok: true, posts: data.posts } : failure(data.error);
+  }
+
+  function writePosts(posts, storage) {
+    try {
+      storageFor(storage).setItem(POSTS_KEY, JSON.stringify(posts));
+      return { ok: true };
+    } catch (error) {
+      return failure('保存失败，浏览器存储可能已满或被禁用。请检查后重试，原有信息未被改动。');
+    }
   }
 
   function validate(data) {
     const errors = [];
-    if (!data.name || !String(data.name).trim()) errors.push('物品名称不能为空');
-    if (!data.place || !String(data.place).trim()) errors.push('地点不能为空');
-    if (!data.time) errors.push('请选择时间');
-    if (!data.contact || !String(data.contact).trim()) errors.push('联系方式不能为空');
-    if (!data.type || !['lost', 'found'].includes(data.type)) errors.push('类型错误');
+    if (!data || !['lost', 'found'].includes(data.type)) errors.push('请选择寻物或招领类型');
+    const fields = [['name', '物品名称', 50], ['place', '地点', 50], ['contact', '联系方式', 50]];
+    fields.forEach(function ([key, label, limit]) {
+      const value = data && data[key];
+      if (typeof value !== 'string' || !value.trim()) errors.push(label + '不能为空');
+      else if (value.trim().length > limit) errors.push(label + '不能超过' + limit + '个字符');
+    });
+    [['category', '物品类别', 20], ['desc', '描述', 200]].forEach(function ([key, label, limit]) {
+      const value = data && data[key];
+      if (value != null && (typeof value !== 'string' || value.trim().length > limit)) errors.push(label + '格式不正确或超过' + limit + '个字符');
+    });
+    const time = data && data.time;
+    const match = typeof time === 'string' && /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(time);
+    const date = match && new Date(time);
+    if (!match || !Number.isFinite(date.getTime()) ||
+      [date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours(), date.getMinutes()].some((value, index) => value !== Number(match[index + 1]))) {
+      errors.push('请选择有效的丢失或拾取时间');
+    }
     return errors;
   }
 
-  function savePost(data) {
+  function savePost(data, storage) {
     const errors = validate(data);
     if (errors.length) return { ok: false, errors };
-
-    const posts = readPosts();
+    const records = readPosts(storage);
+    if (!records.ok) return records;
+    const identity = getUserId(storage);
+    if (!identity.ok) return identity;
+    let id;
+    do {
+      id = 'post_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+    } while (Posts.findPost(records.posts, id));
     const post = {
-      id: 'post_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-      type: data.type,
-      name: String(data.name).trim(),
-      category: data.category ? String(data.category).trim() : '',
-      place: String(data.place).trim(),
-      time: data.time,
-      desc: data.desc ? String(data.desc).trim() : '',
-      contact: String(data.contact).trim(),
-      status: data.type === 'lost' ? '寻找中' : '招领中',
-      createdAt: new Date().toISOString(),
-      ownerId: getUserId()
+      id, type: data.type, name: data.name.trim(), category: (data.category || '').trim(),
+      place: data.place.trim(), time: data.time, desc: (data.desc || '').trim(), contact: data.contact.trim(),
+      status: data.type === 'lost' ? '寻找中' : '招领中', createdAt: new Date().toISOString(), ownerId: identity.userId
     };
-
-    posts.push(post);
-    writePosts(posts);
-    return { ok: true, post: post };
+    const written = writePosts([...records.posts, post], storage);
+    return written.ok ? { ok: true, post } : written;
   }
 
-  function getMyPosts() {
-    const userId = getUserId();
-    return readPosts().filter(function (p) { return p.ownerId === userId; });
+  function getMyPosts(storage) {
+    const records = readPosts(storage);
+    if (!records.ok) return records;
+    const identity = getUserId(storage);
+    if (!identity.ok) return identity;
+    const posts = Posts.filterPosts(records.posts, { includeFinished: true }).filter(post => post.ownerId === identity.userId);
+    return { ok: true, posts };
   }
 
-  function getPostById(id) {
-    return readPosts().find(function (p) { return String(p.id) === String(id); }) || null;
+  function getPostById(id, storage) {
+    const records = readPosts(storage);
+    return records.ok ? { ok: true, post: Posts.findPost(records.posts, id) } : records;
   }
 
-  function isFinished(post) {
-    return post.status === '已找到' || post.status === '已归还';
-  }
-
-  function updateStatus(id, newStatus) {
-    const userId = getUserId();
-    const posts = readPosts();
-    const post = posts.find(function (p) { return String(p.id) === String(id); });
-    if (!post) return { ok: false, errors: ['帖子不存在'] };
-    if (post.ownerId !== userId) return { ok: false, errors: ['无权操作'] };
-    if (isFinished(post)) return { ok: false, errors: ['已结束，无需重复操作'] };
+  function updateStatus(id, newStatus, storage) {
+    const records = readPosts(storage);
+    if (!records.ok) return records;
+    const identity = getUserId(storage);
+    if (!identity.ok) return identity;
+    const post = Posts.findPost(records.posts, id);
+    if (!post) return failure('这条信息不存在或已被删除');
+    if (post.ownerId !== identity.userId) return failure('只能操作本人发布的信息');
+    if (Posts.isFinished(post)) return failure('信息已结束，无需重复操作');
+    if (newStatus !== (post.type === 'lost' ? '已找到' : '已归还')) return failure('不允许修改为该状态');
     post.status = newStatus;
-    writePosts(posts);
-    return { ok: true };
+    return writePosts(records.posts, storage);
   }
 
-  function deletePost(id) {
-    const userId = getUserId();
-    const posts = readPosts();
-    const post = posts.find(function (p) { return String(p.id) === String(id); });
-    if (!post) return { ok: false, errors: ['帖子不存在'] };
-    if (post.ownerId !== userId) return { ok: false, errors: ['无权操作'] };
-    writePosts(posts.filter(function (p) { return String(p.id) !== String(id); }));
-    return { ok: true };
+  function deletePost(id, storage) {
+    const records = readPosts(storage);
+    if (!records.ok) return records;
+    const identity = getUserId(storage);
+    if (!identity.ok) return identity;
+    const post = Posts.findPost(records.posts, id);
+    if (!post) return failure('这条信息不存在或已被删除');
+    if (post.ownerId !== identity.userId) return failure('只能删除本人发布的信息');
+    return writePosts(records.posts.filter(record => String(record.id) !== String(id)), storage);
   }
 
-  window.CampusManage = {
-    POSTS_KEY: POSTS_KEY,
-    USER_KEY: USER_KEY,
-    getUserId: getUserId,
-    readPosts: readPosts,
-    writePosts: writePosts,
-    savePost: savePost,
-    getMyPosts: getMyPosts,
-    getPostById: getPostById,
-    updateStatus: updateStatus,
-    deletePost: deletePost
-  };
-})();
+  return { POSTS_KEY, USER_KEY, getUserId, readPosts, savePost, getMyPosts, getPostById, updateStatus, deletePost };
+});

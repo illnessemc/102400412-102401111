@@ -39,7 +39,7 @@
         (!place || post.place.toLowerCase().includes(place)) &&
         terms.every(term => searchable.includes(term));
     }).sort(function (a, b) {
-      return timestamp(b.createdAt || b.time) - timestamp(a.createdAt || b.time);
+      return timestamp(b.createdAt || b.time) - timestamp(a.createdAt || a.time);
     });
   }
 
@@ -54,24 +54,28 @@
       return Object.hasOwn(STATUS, post.type) && STATUS[post.type].includes(post.status) &&
         ['name', 'category', 'place', 'time', 'desc'].every(key => typeof post[key] === 'string') &&
         Boolean(post.name.trim()) && (post.contact == null || typeof post.contact === 'string') &&
-        (post.createdAt == null || typeof post.createdAt === 'string');
+        (post.createdAt == null || typeof post.createdAt === 'string') &&
+        (post.ownerId == null || (typeof post.ownerId === 'string' && Boolean(post.ownerId.trim())));
     });
   }
 
-  // 改动：有真实数据时合并演示数据，演示数据永远作为"预置数据库"存在
-  function loadPosts(storage) {
-    const demo = () => DEMO_POSTS.map(post => ({ ...post, _demo: true }));
+  function readStoredPosts(storage) {
     try {
       const raw = storage.getItem(STORAGE_KEY);
-      if (raw === null) return { posts: demo(), source: 'demo', error: '' };
+      if (raw === null) return { ok: true, posts: [], missing: true, error: '' };
       const posts = JSON.parse(raw);
       if (!validPosts(posts)) throw new Error('Invalid post data');
-      // 合并：演示数据永远在前，真实数据在后
-      const merged = [...DEMO_POSTS.map(post => ({ ...post, _demo: true })), ...posts];
-      return { posts: merged, source: 'local', error: '' };
+      return { ok: true, posts, missing: false, error: '' };
     } catch (error) {
-      return { posts: demo(), source: 'demo', error: '本地数据暂时无法读取，当前显示演示信息。原有数据未被改动。' };
+      return { ok: false, posts: [], missing: false, error: '本地数据暂时无法读取，请检查浏览器存储或数据格式。原有数据未被改动。' };
     }
+  }
+
+  function loadPosts(storage) {
+    const data = readStoredPosts(storage);
+    if (data.ok && !data.missing) return { posts: data.posts, source: 'local', error: '' };
+    const posts = DEMO_POSTS.map(post => ({ ...post }));
+    return { posts, source: 'demo', error: data.ok ? '' : data.error + ' 当前显示演示信息。' };
   }
 
   function categories(posts) {
@@ -104,5 +108,5 @@
     return typeof post.contact === 'string' ? post.contact.trim() : '';
   }
 
-  return { STORAGE_KEY, DEMO_POSTS, isFinished, filterPosts, loadPosts, categories, iconFor, displayTime, findPost, contactText };
+  return { STORAGE_KEY, DEMO_POSTS, isFinished, filterPosts, readStoredPosts, loadPosts, categories, iconFor, displayTime, findPost, contactText };
 });

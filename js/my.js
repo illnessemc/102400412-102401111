@@ -4,7 +4,9 @@
   }
 
   function renderStats(container) {
-    const posts = window.CampusManage.getMyPosts();
+    const result = window.CampusManage.getMyPosts();
+    if (!result.ok) { CampusUI.toast(result.errors.join(' ')); return; }
+    const posts = result.posts;
     const total = posts.length;
     const ongoing = posts.filter(p => p.status !== '已找到' && p.status !== '已归还').length;
     const finished = total - ongoing;
@@ -46,7 +48,9 @@
   }
 
   function render(container) {
-    const posts = window.CampusManage.getMyPosts();
+    const result = window.CampusManage.getMyPosts();
+    if (!result.ok) { container.textContent = result.errors.join(' '); return; }
+    const posts = result.posts;
     container.innerHTML = `
       <div id="my-stats" style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;"></div>
       <div style="margin-bottom:12px;">
@@ -76,7 +80,7 @@
       const cards = cardsBox.querySelectorAll('.my-card');
       cards.forEach(card => {
         const id = card.dataset.id;
-        const post = window.CampusManage.getPostById(id);
+        const post = window.CampusManage.getPostById(id).post;
         if (!post) return;
         const isDone = post.status === '已找到' || post.status === '已归还';
         const val = filterSel.value;
@@ -94,7 +98,9 @@
       const action = btn.dataset.action;
       const id = btn.dataset.id;
       const card = cardsBox.querySelector('.my-card[data-id="' + id + '"]');
-      const post = window.CampusManage.getPostById(id);
+      const found = window.CampusManage.getPostById(id);
+      if (!found.ok) { alert(found.errors.join('\n')); return; }
+      const post = found.post;
       if (!post) return;
 
       if (action === 'finish') {
@@ -109,7 +115,7 @@
         }
         window.dispatchEvent(new Event('campus:posts-changed'));
         // 局部替换卡片，不整体重绘，避免弹窗异常
-        const newPost = window.CampusManage.getPostById(id);
+        const newPost = window.CampusManage.getPostById(id).post;
         if (card && newPost) card.replaceWith(renderCard(newPost));
         renderStats(container);
       } else if (action === 'delete') {
@@ -125,7 +131,7 @@
         if (card) card.remove();
         renderStats(container);
         // 若删光了整体重绘显示空状态
-        if (window.CampusManage.getMyPosts().length === 0) render(container);
+        if (window.CampusManage.getMyPosts().posts.length === 0) render(container);
       }
     });
   }

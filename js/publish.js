@@ -73,7 +73,9 @@
     var postId = params.get('id');
     var postHtml = '';
     if (postId) {
-      var post = window.CampusManage.getPostById(postId);
+      var result = window.CampusManage.getPostById(postId);
+      if (!result.ok) { container.textContent = result.errors.join(' '); return; }
+      var post = result.post;
       if (post) {
         postHtml =
           '<div style="background:#e8f5e9;padding:16px;border-radius:8px;margin-bottom:16px;">' +
