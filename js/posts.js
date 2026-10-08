@@ -39,7 +39,7 @@
         (!place || post.place.toLowerCase().includes(place)) &&
         terms.every(term => searchable.includes(term));
     }).sort(function (a, b) {
-      return timestamp(b.createdAt || b.time) - timestamp(a.createdAt || a.time);
+      return timestamp(b.createdAt || b.time) - timestamp(a.createdAt || b.time);
     });
   }
 
@@ -58,15 +58,17 @@
     });
   }
 
-  // Read-only: storage errors never erase the publisher's data.
+  // 改动：有真实数据时合并演示数据，演示数据永远作为"预置数据库"存在
   function loadPosts(storage) {
-    const demo = () => DEMO_POSTS.map(post => ({ ...post }));
+    const demo = () => DEMO_POSTS.map(post => ({ ...post, _demo: true }));
     try {
       const raw = storage.getItem(STORAGE_KEY);
       if (raw === null) return { posts: demo(), source: 'demo', error: '' };
       const posts = JSON.parse(raw);
       if (!validPosts(posts)) throw new Error('Invalid post data');
-      return { posts: posts, source: 'local', error: '' };
+      // 合并：演示数据永远在前，真实数据在后
+      const merged = [...DEMO_POSTS.map(post => ({ ...post, _demo: true })), ...posts];
+      return { posts: merged, source: 'local', error: '' };
     } catch (error) {
       return { posts: demo(), source: 'demo', error: '本地数据暂时无法读取，当前显示演示信息。原有数据未被改动。' };
     }
