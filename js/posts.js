@@ -7,6 +7,7 @@
 
   const STORAGE_KEY = 'campus-lost-found.posts.v1';
   const STATUS = { lost: ['寻找中', '已找到'], found: ['招领中', '已归还'] };
+  const CONTACT_TYPES = { wechat: '微信号', qq: 'QQ 号码', phone: '手机号' };
   const DEMO_POSTS = [
     { id: 'demo-1', type: 'found', name: '校园卡（一卡通）', category: '校园卡/证件', place: '三食堂二楼', time: '2026-10-07T12:30', createdAt: '2026-10-07T13:00:00+08:00', status: '招领中', desc: '在靠窗位置捡到一张校园卡，卡面完好，请失主说明卡面信息进行确认。', contact: 'QQ：123456789（示例）' },
     { id: 'demo-2', type: 'lost', name: '黑色长柄雨伞', category: '雨伞', place: '图书馆一楼大厅', time: '2026-10-07T08:10', createdAt: '2026-10-07T12:50:00+08:00', status: '寻找中', desc: '黑色长柄雨伞，伞柄有银色金属环，可能遗落在门口伞架。', contact: '微信：demo-umbrella（示例）' },
@@ -54,6 +55,7 @@
       return Object.hasOwn(STATUS, post.type) && STATUS[post.type].includes(post.status) &&
         ['name', 'category', 'place', 'time', 'desc'].every(key => typeof post[key] === 'string') &&
         Boolean(post.name.trim()) && (post.contact == null || typeof post.contact === 'string') &&
+        (post.contactType == null || Object.hasOwn(CONTACT_TYPES, post.contactType)) &&
         (post.createdAt == null || typeof post.createdAt === 'string') &&
         (post.ownerId == null || (typeof post.ownerId === 'string' && Boolean(post.ownerId.trim())));
     });
@@ -108,5 +110,9 @@
     return typeof post.contact === 'string' ? post.contact.trim() : '';
   }
 
-  return { STORAGE_KEY, DEMO_POSTS, isFinished, filterPosts, readStoredPosts, loadPosts, categories, iconFor, displayTime, findPost, contactText };
+  function contactLabel(post) {
+    return Object.hasOwn(CONTACT_TYPES, post.contactType) ? CONTACT_TYPES[post.contactType] : '联系方式（旧记录未分类）';
+  }
+
+  return { STORAGE_KEY, CONTACT_TYPES, DEMO_POSTS, isFinished, filterPosts, readStoredPosts, loadPosts, categories, iconFor, displayTime, findPost, contactText, contactLabel };
 });

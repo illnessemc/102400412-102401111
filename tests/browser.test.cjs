@@ -34,7 +34,7 @@ async function browserScenarios() {
     await wait();
   };
   const fill = (name = '审查测试雨伞', type = 'lost') => {
-    const values = { name, type, category: '雨伞', place: '图书馆 <北门>', time: '2026-10-08T09:00', contact: 'UI_TEST_CONTACT', desc: '用于自动化测试' };
+    const values = { name, type, category: '雨伞', place: '图书馆 <北门>', time: '2026-10-08T09:00', contactType: 'wechat', contact: 'UI_TEST_CONTACT', desc: '用于自动化测试' };
     for (const [field, value] of Object.entries(values)) page.document.querySelector('#pub-' + field).value = value;
     page.document.querySelector('#pub-type').dispatchEvent(new page.Event('change', { bubbles: true }));
   };
@@ -57,6 +57,23 @@ async function browserScenarios() {
     await submit();
     expect(page.location.hash.startsWith('#publish'), '空表单跳转成功');
     expect(page.localStorage.getItem(key) === null, '空表单写入数据');
+  });
+
+  await scenario('联系方式必须选择类型，三种选择同步输入标签且保留账号草稿', async () => {
+    fill();
+    const select = page.document.querySelector('#pub-contactType');
+    const input = page.document.querySelector('#pub-contact');
+    for (const [type, label] of [['wechat', '微信号 *'], ['qq', 'QQ 号码 *'], ['phone', '手机号 *']]) {
+      select.value = type;
+      select.dispatchEvent(new page.Event('change', { bubbles: true }));
+      expect(page.document.querySelector('#pub-contact-label').textContent === label, '类型与标签不一致');
+      expect(input.value === 'UI_TEST_CONTACT', '切换类型丢失草稿');
+    }
+    select.value = '';
+    expect(!page.document.querySelector('#pub-form').checkValidity(), '未选择类型仍通过校验');
+    await submit();
+    expect(records().length === 0, '未选择类型仍保存');
+    page.document.querySelector('#pub-form').reset();
   });
   await scenario('快捷入口正确预选寻物和招领，已有草稿类型也会更新', async () => {
     await go('home');
@@ -160,6 +177,7 @@ async function browserScenarios() {
     page.document.querySelector('#search-list .card').click(); await wait();
     page.document.querySelector('[aria-controls="contact-panel"]').click();
     expect(page.document.querySelector('#contact-value').value === 'UI_TEST_CONTACT', '联系方式错误');
+    expect(page.document.querySelector('#contact-kind').textContent === '微信号', '联系方式类型不明确');
     expect(page.document.querySelector('.notice.finished'), '已结束详情无提示');
   });
   await scenario('删除本人记录更新统计，删除最后一条保留真正空列表', async () => {
@@ -275,7 +293,7 @@ test('Chrome 页面回归', { timeout: 60000 }, async t => {
     const results = JSON.parse(Buffer.from(match[1], 'base64').toString('utf8'));
     if (process.env.CAMPUS_TEST_ARTIFACT_DIR) await fs.writeFile(path.join(process.env.CAMPUS_TEST_ARTIFACT_DIR, 'browser-results.json'), JSON.stringify(results, null, 2));
     for (const result of results) await t.test(result.name, () => assert.equal(result.ok, true, result.error));
-    assert.equal(results.length, 19, '浏览器场景未全部执行');
+    assert.equal(results.length, 20, '浏览器场景未全部执行');
   } finally {
     await new Promise(resolve => server.close(resolve));
     const target = path.resolve(profile);

@@ -80,17 +80,19 @@
       const panel = el('div', 'contact-panel');
       panel.id = 'contact-panel';
       panel.hidden = true;
+      const label = el('label', 'contact-note', CampusPosts.contactLabel(post));
+      label.id = 'contact-kind';
+      label.htmlFor = 'contact-value';
       const input = el('input', 'contact-input');
       input.id = 'contact-value';
       input.type = 'text';
       input.readOnly = true;
       input.value = contact;
-      input.setAttribute('aria-label', '发布者联系方式');
       const copy = el('button', 'filter-button', '复制联系方式');
       copy.type = 'button';
       const copyActions = el('div', 'contact-actions');
       copyActions.append(copy);
-      panel.append(input, copyActions, el('p', 'contact-note', '复制受限时可选中联系方式，使用 Ctrl+C（Mac 使用 ⌘C）手动复制。'));
+      panel.append(label, input, copyActions, el('p', 'contact-note', '复制受限时可选中联系方式，使用 Ctrl+C（Mac 使用 ⌘C）手动复制。'));
       contactCard.append(panel);
       reveal.addEventListener('click', function () {
         panel.hidden = false;

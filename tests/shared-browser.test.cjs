@@ -45,7 +45,7 @@ async function sharedScenarios(mode) {
       expect(page.document.querySelector('#pub-type').value === 'found', '招领预选错误');
     });
     await check('断线发布失败保留输入，恢复后保存一次且不执行 HTML', async () => {
-      const values = { type: 'found', name: payload, category: '雨伞', place: '共享图书馆', time: '2026-10-08T09:00', contact: 'SHARED_TEST_CONTACT', desc: '共享测试记录' };
+      const values = { type: 'found', name: payload, category: '雨伞', place: '共享图书馆', time: '2026-10-08T09:00', contactType: 'qq', contact: '00000000', desc: '共享测试记录' };
       for (const [field, value] of Object.entries(values)) page.document.querySelector('#pub-' + field).value = value;
       const nativeFetch = page.fetch;
       page.fetch = () => Promise.reject(new Error('offline'));
@@ -86,7 +86,8 @@ async function sharedScenarios(mode) {
       page.document.querySelector('#search-list .card').click();
       await until(() => page.document.querySelector('[aria-controls="contact-panel"]'));
       page.document.querySelector('[aria-controls="contact-panel"]').click();
-      expect(page.document.querySelector('#contact-value').value === 'SHARED_TEST_CONTACT', '共享联系方式错误');
+      expect(page.document.querySelector('#contact-value').value === '00000000', '共享联系方式错误');
+      expect(page.document.querySelector('#contact-kind').textContent === 'QQ 号码', '共享联系方式类型不明确');
     });
     await check('乙的我的发布为空，没有甲的管理按钮', async () => {
       await go('my');

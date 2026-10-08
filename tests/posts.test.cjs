@@ -145,6 +145,24 @@ test('联系方式只去除首尾空格，保持原始内容', () => {
   assert.equal(Posts.contactText(post({ contact: ' 微信：test <account> ' })), '微信：test <account>');
 });
 
+test('微信、QQ、手机号的详情标签明确，复制内容仍是原始账号', () => {
+  for (const [contactType, label] of [['wechat', '微信号'], ['qq', 'QQ 号码'], ['phone', '手机号']]) {
+    const record = post({ contactType, contact: ' 00000000 ' });
+    assert.equal(Posts.contactLabel(record), label);
+    assert.equal(Posts.contactText(record), '00000000');
+  }
+});
+
+test('旧记录没有联系方式类型时仍可读，不根据数字猜测微信或 QQ', () => {
+  const record = post({ contact: '00000000' });
+  assert.deepEqual(Posts.loadPosts(storage(JSON.stringify([record]))).posts, [record]);
+  assert.equal(Posts.contactLabel(record), '联系方式（旧记录未分类）');
+});
+
+test('存储中的非法联系方式类型报错，避免伪装成合法平台', () => {
+  assert.equal(Posts.readStoredPosts(storage(JSON.stringify([post({ contactType: 'email' })]))).ok, false);
+});
+
 test('缺少或空白联系方式返回空字符串', () => {
   for (const contact of [undefined, null, '', '  ']) assert.equal(Posts.contactText(post({ contact })), '');
 });

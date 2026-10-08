@@ -10,7 +10,7 @@ class MockStorage {
 }
 
 function input(fields = {}) {
-  return { type: 'lost', name: '黑色雨伞', category: '雨伞', place: '图书馆', time: '2026-10-08T09:00', desc: '银色伞柄', contact: '微信：test', ...fields };
+  return { type: 'lost', name: '黑色雨伞', category: '雨伞', place: '图书馆', time: '2026-10-08T09:00', desc: '银色伞柄', contactType: 'wechat', contact: '微信：test', ...fields };
 }
 
 function seed(fields = {}) {
@@ -19,6 +19,23 @@ function seed(fields = {}) {
   assert.equal(saved.ok, true);
   return { storage, post: saved.post };
 }
+
+for (const [contactType, contact] of [['wechat', 'test_account'], ['qq', '00000000'], ['phone', '00000000000']]) {
+  test(contactType + '的类型与原始号码一起保存、读取，不混成同一个字段', () => {
+    const { storage, post } = seed({ contactType, contact: ' ' + contact + ' ' });
+    assert.equal(post.contactType, contactType);
+    assert.equal(post.contact, contact);
+    assert.equal(Manage.getPostById(post.id, storage).post.contactType, contactType);
+  });
+}
+
+test('缺失或非法联系方式类型拒绝发布，且不写入身份与信息', () => {
+  for (const contactType of [undefined, null, '', 'email', '__proto__']) {
+    const storage = new MockStorage();
+    assert.equal(Manage.savePost(input({ contactType }), storage).ok, false);
+    assert.equal(storage.data.size, 0);
+  }
+});
 
 test('本地身份创建一次，刷新读取保持相同', () => {
   const storage = new MockStorage();

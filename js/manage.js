@@ -52,6 +52,7 @@
   function validate(data) {
     const errors = [];
     if (!data || !['lost', 'found'].includes(data.type)) errors.push('请选择寻物或招领类型');
+    if (!data || !Object.hasOwn(Posts.CONTACT_TYPES, data.contactType)) errors.push('请选择微信、QQ 或手机号作为联系方式类型');
     const fields = [['name', '物品名称', 50], ['place', '地点', 50], ['contact', '联系方式', 50]];
     fields.forEach(function ([key, label, limit]) {
       const value = data && data[key];
@@ -86,7 +87,7 @@
     } while (Posts.findPost(records.posts, id));
     const post = {
       id, type: data.type, name: data.name.trim(), category: (data.category || '').trim(),
-      place: data.place.trim(), time: data.time, desc: (data.desc || '').trim(), contact: data.contact.trim(),
+      place: data.place.trim(), time: data.time, desc: (data.desc || '').trim(), contactType: data.contactType, contact: data.contact.trim(),
       status: data.type === 'lost' ? '寻找中' : '招领中', createdAt: new Date().toISOString(), ownerId: identity.userId
     };
     const written = writePosts([...records.posts, post], storage);

@@ -7,7 +7,7 @@ const http = require('node:http');
 const { createAppHandler } = require('../server.cjs');
 
 function input(fields = {}) {
-  return { type: 'lost', name: '共享测试雨伞', category: '雨伞', place: '图书馆', time: '2026-10-08T09:00', desc: '黑色银柄', contact: 'TEST_QQ', ...fields };
+  return { type: 'lost', name: '共享测试雨伞', category: '雨伞', place: '图书馆', time: '2026-10-08T09:00', desc: '黑色银柄', contactType: 'wechat', contact: 'TEST_CONTACT', ...fields };
 }
 
 async function fixture(t) {
@@ -66,7 +66,8 @@ test('甲发布，乙能浏览详情与联系方式，但我的发布按身份�
   const record = saved.result.post;
   assert.equal((await b.request('/api/posts')).result.posts[0].id, record.id);
   const detail = await b.request('/api/posts/' + record.id);
-  assert.equal(detail.result.post.contact, 'TEST_QQ');
+  assert.equal(detail.result.post.contact, 'TEST_CONTACT');
+  assert.equal(detail.result.post.contactType, 'wechat');
   assert.equal((await a.request('/api/my-posts')).result.posts.length, 1);
   assert.equal((await b.request('/api/my-posts')).result.posts.length, 0);
 });
