@@ -55,7 +55,7 @@
       return Object.hasOwn(STATUS, post.type) && STATUS[post.type].includes(post.status) &&
         ['name', 'category', 'place', 'time', 'desc'].every(key => typeof post[key] === 'string') &&
         Boolean(post.name.trim()) && (post.contact == null || typeof post.contact === 'string') &&
-        (post.contactType == null || Object.hasOwn(CONTACT_TYPES, post.contactType)) &&
+        (post.contactType == null || (typeof post.contactType === 'string' && Object.hasOwn(CONTACT_TYPES, post.contactType))) &&
         (post.isDemo == null || typeof post.isDemo === 'boolean') &&
         (post.createdAt == null || typeof post.createdAt === 'string') &&
         (post.ownerId == null || (typeof post.ownerId === 'string' && Boolean(post.ownerId.trim())));
@@ -112,7 +112,7 @@
   }
 
   function contactLabel(post) {
-    return Object.hasOwn(CONTACT_TYPES, post.contactType) ? CONTACT_TYPES[post.contactType] : '联系方式（旧记录未分类）';
+    return typeof post.contactType === 'string' && Object.hasOwn(CONTACT_TYPES, post.contactType) ? CONTACT_TYPES[post.contactType] : '联系方式（旧记录未分类）';
   }
 
   return { STORAGE_KEY, CONTACT_TYPES, DEMO_POSTS, isFinished, filterPosts, readStoredPosts, loadPosts, categories, iconFor, displayTime, findPost, contactText, contactLabel };

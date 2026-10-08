@@ -160,7 +160,9 @@ test('旧记录没有联系方式类型时仍可读，不根据数字猜测微�
 });
 
 test('存储中的非法联系方式类型报错，避免伪装成合法平台', () => {
-  assert.equal(Posts.readStoredPosts(storage(JSON.stringify([post({ contactType: 'email' })]))).ok, false);
+  for (const contactType of ['email', ['wechat'], 1, true]) {
+    assert.equal(Posts.readStoredPosts(storage(JSON.stringify([post({ contactType })]))).ok, false);
+  }
 });
 
 test('缺少或空白联系方式返回空字符串', () => {

@@ -30,7 +30,7 @@ for (const [contactType, contact] of [['wechat', 'test_account'], ['qq', '000000
 }
 
 test('缺失或非法联系方式类型拒绝发布，且不写入身份与信息', () => {
-  for (const contactType of [undefined, null, '', 'email', '__proto__']) {
+  for (const contactType of [undefined, null, '', 'email', '__proto__', ['wechat'], 1, true]) {
     const storage = new MockStorage();
     assert.equal(Manage.savePost(input({ contactType }), storage).ok, false);
     assert.equal(storage.data.size, 0);
