@@ -273,7 +273,9 @@ async function browserScenarios() {
   });
   await scenario('宽屏侧边导航与分组表单正常，跳到内容不改变当前路由', async () => {
     frame.style.width = '1440px';
-    await go('publish');
+    await go('home');
+    page.document.querySelector('a.nav-link[data-page="publish"]').click(); await wait();
+    expect(page.location.hash === '#publish', '侧边发布入口没有打开表单');
     const nav = page.document.querySelector('.bottom-nav').getBoundingClientRect();
     const main = page.document.querySelector('#main-content').getBoundingClientRect();
     const form = page.document.querySelector('#pub-form').getBoundingClientRect();
