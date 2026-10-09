@@ -117,4 +117,3 @@
 
   return { STORAGE_KEY, CONTACT_TYPES, DEMO_POSTS, isFinished, filterPosts, readStoredPosts, loadPosts, categories, iconFor, displayTime, findPost, contactText, contactLabel };
 });
-
