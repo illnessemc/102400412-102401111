@@ -70,16 +70,8 @@
       contactCard.append(el('p', 'contact-note', '发布者暂未提供联系方式。'));
     } else {
       contactCard.append(el('p', 'contact-note', '先核对时间、地点和物品特征，再使用发布者提供的联系方式联系。'));
-      const reveal = el('button', 'filter-button', '查看联系方式');
-      reveal.type = 'button';
-      reveal.setAttribute('aria-expanded', 'false');
-      reveal.setAttribute('aria-controls', 'contact-panel');
-      const actions = el('div', 'contact-actions');
-      actions.append(reveal);
-      contactCard.append(actions);
       const panel = el('div', 'contact-panel');
       panel.id = 'contact-panel';
-      panel.hidden = true;
       const label = el('label', 'contact-note', CampusPosts.contactLabel(post));
       label.id = 'contact-kind';
       label.htmlFor = 'contact-value';
@@ -94,12 +86,6 @@
       copyActions.append(copy);
       panel.append(label, input, copyActions, el('p', 'contact-note', '复制受限时可选中联系方式，使用 Ctrl+C（Mac 使用 ⌘C）手动复制。'));
       contactCard.append(panel);
-      reveal.addEventListener('click', function () {
-        panel.hidden = false;
-        reveal.setAttribute('aria-expanded', 'true');
-        reveal.hidden = true;
-        input.focus();
-      });
       copy.addEventListener('click', async function () {
         copy.disabled = true;
         let clipboard;

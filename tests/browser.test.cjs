@@ -109,6 +109,9 @@ async function browserScenarios() {
     page.document.querySelector('.success-actions .action-secondary').click(); await wait();
     expect(new URLSearchParams(page.location.hash.split('?')[1]).get('id') === found.id, '成功页打开了其他记录');
     expect(page.document.querySelector('a.nav-link[aria-current="page"]').dataset.page === 'my', '本人详情导航没有延续来源');
+    const contactInput = page.document.querySelector('#contact-value');
+    expect(contactInput.getBoundingClientRect().height > 0 && contactInput.value === found.contact, '招领联系方式没有直接展示');
+    expect(page.document.querySelector('#contact-kind').textContent === '微信号', '招领联系方式缺少类型');
     page.document.querySelector('#detail-back').click(); await wait();
     expect(page.location.hash === '#my', '详情返回没有进入本人记录');
     await go(route);
@@ -195,10 +198,24 @@ async function browserScenarios() {
     await go('search?keyword=' + encodeURIComponent('审查测试雨伞') + '&finished=1');
     expect(page.document.querySelectorAll('#search-list .card').length === 1, '历史记录无法查到');
     page.document.querySelector('#search-list .card').click(); await wait();
-    page.document.querySelector('[aria-controls="contact-panel"]').click();
-    expect(page.document.querySelector('#contact-value').value === 'UI_TEST_CONTACT', '联系方式错误');
+    const input = page.document.querySelector('#contact-value');
+    expect(input.getBoundingClientRect().height > 0 && input.value === 'UI_TEST_CONTACT', '寻物联系方式没有直接展示');
     expect(page.document.querySelector('#contact-kind').textContent === '微信号', '联系方式类型不明确');
     expect(page.document.querySelector('.notice.finished'), '已结束详情无提示');
+    const descriptor = Object.getOwnPropertyDescriptor(page.navigator, 'clipboard');
+    const copy = page.document.querySelector('#contact-panel button');
+    let copied;
+    try {
+      Object.defineProperty(page.navigator, 'clipboard', { configurable: true, value: { writeText: async text => { copied = text; } } });
+      copy.click(); await wait();
+      expect(copied === input.value && !copy.disabled, '复制联系方式错误或按钮未恢复');
+      Object.defineProperty(page.navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new Error('denied'); } } });
+      copy.click(); await wait();
+      expect(input.selectionStart === 0 && input.selectionEnd === input.value.length && !copy.disabled, '复制受限时没有选中账号或恢复按钮');
+    } finally {
+      if (descriptor) Object.defineProperty(page.navigator, 'clipboard', descriptor);
+      else delete page.navigator.clipboard;
+    }
   });
   await scenario('删除本人记录更新统计，删除最后一条保留真正空列表', async () => {
     await go('my');

@@ -45,10 +45,10 @@ async function sharedScenarios(mode) {
       expect(!page.document.querySelector('#source-note').textContent.includes('演示'), '顶部仍有演示提示');
       await go('search?keyword=' + encodeURIComponent('高等数学'));
       page.document.querySelector('#search-list .card').click();
-      await until(() => page.document.querySelector('[aria-controls="contact-panel"]'));
+      await until(() => page.document.querySelector('#contact-value'));
       expect(!page.document.querySelector('#detail-content').textContent.includes('演示'), '详情仍带演示标签');
       expect(page.document.querySelector('#detail-content').textContent.includes('先核对时间'), '缺少正常联系提示');
-      page.document.querySelector('[aria-controls="contact-panel"]').click();
+      expect(page.document.querySelector('#contact-value').getBoundingClientRect().height > 0, '预置信息联系方式未直接展示');
       expect(page.document.querySelector('#contact-kind').textContent === '手机号', '手机号类型不明确');
       expect(page.document.querySelector('#contact-value').value === '00000000000', '演示号码错误');
       await go('my');
@@ -102,8 +102,8 @@ async function sharedScenarios(mode) {
       expect(page.document.querySelectorAll('#home-list .card').length === 1, '另一浏览器看不到发布');
       await go('search?keyword=' + keyword);
       page.document.querySelector('#search-list .card').click();
-      await until(() => page.document.querySelector('[aria-controls="contact-panel"]'));
-      page.document.querySelector('[aria-controls="contact-panel"]').click();
+      await until(() => page.document.querySelector('#contact-value'));
+      expect(page.document.querySelector('#contact-value').getBoundingClientRect().height > 0, '另一用户的联系方式未直接展示');
       expect(page.document.querySelector('#contact-value').value === '00000000', '共享联系方式错误');
       expect(page.document.querySelector('#contact-kind').textContent === 'QQ 号码', '共享联系方式类型不明确');
     });
