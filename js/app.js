@@ -40,7 +40,7 @@
       const statusClass = CampusPosts.isFinished(post) ? 'done' : post.type;
       titleRow.append(element('span', 'card-title', post.name), element('span', 'badge ' + statusClass, post.status));
       const meta = element('div', 'meta');
-      meta.append(element('span', '', '📍 ' + post.place), element('span', '', '🕒 ' + CampusPosts.displayTime(post.time)), element('span', '', post.type === 'lost' ? '寻物' : '招领'));
+      meta.append(element('span', '', post.place), element('span', '', CampusPosts.displayTime(post.time)));
       main.append(titleRow, element('p', 'desc', post.desc), meta);
       card.append(thumb, main);
       container.append(card);
