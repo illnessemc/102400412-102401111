@@ -51,7 +51,7 @@ async function browserScenarios() {
   await scenario('直接打开发布路由会初始化表单并预选招领', async () => {
     expect(page.document.querySelector('#pub-form'), '发布表单未初始化');
     expect(page.document.querySelector('#pub-type').value === 'found', '未预选招领');
-    expect(page.document.querySelector('#pub-place-label').textContent === '拾取地点 *', '招领标签错误');
+    expect(page.document.querySelector('#pub-place-label').textContent === '拾取地点', '招领标签错误');
   });
   await scenario('原生必填项校验阻止空表单发布', async () => {
     await submit();
@@ -63,7 +63,7 @@ async function browserScenarios() {
     fill();
     const select = page.document.querySelector('#pub-contactType');
     const input = page.document.querySelector('#pub-contact');
-    for (const [type, label] of [['wechat', '微信号 *'], ['qq', 'QQ 号码 *'], ['phone', '手机号 *']]) {
+    for (const [type, label] of [['wechat', '微信号'], ['qq', 'QQ 号码'], ['phone', '手机号']]) {
       select.value = type;
       select.dispatchEvent(new page.Event('change', { bubbles: true }));
       expect(page.document.querySelector('#pub-contact-label').textContent === label, '类型与标签不一致');
