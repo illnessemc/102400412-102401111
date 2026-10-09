@@ -135,6 +135,59 @@ test('不存在的记录无法更新或删除', () => {
   assert.equal(Manage.deletePost('missing', storage).ok, false);
 });
 
+test('本人编辑内容保留 ID、所有者、发布时间和状态，忽略伪造管理字段', () => {
+  const { storage, post } = seed();
+  const next = Manage.savePost(input({ name: '另一条信息' }), storage).post;
+  const result = Manage.updatePost(post.id, input({ name: ' 蓝色雨伞 ', place: ' 食堂 ', contactType: 'qq', contact: ' 12345678 ', desc: '新描述', id: 'fake', ownerId: 'other', createdAt: 'fake', status: '已找到', isDemo: true }), storage);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.post, { ...post, name: '蓝色雨伞', place: '食堂', contactType: 'qq', contact: '12345678', desc: '新描述' });
+  assert.deepEqual(Manage.readPosts(storage).posts, [result.post, next]);
+});
+
+test('已结束信息可以更正内容，编辑不会重新开启或改变类型', () => {
+  const { storage, post } = seed({ type: 'found' });
+  assert.equal(Manage.updateStatus(post.id, '已归还', storage).ok, true);
+  const result = Manage.updatePost(post.id, input({ type: 'found', name: '更正后的名称' }), storage);
+  assert.equal(result.ok, true);
+  assert.equal(result.post.status, '已归还');
+  const raw = storage.getItem(Manage.POSTS_KEY);
+  assert.equal(Manage.updatePost(post.id, input({ type: 'lost' }), storage).ok, false);
+  assert.equal(storage.getItem(Manage.POSTS_KEY), raw);
+});
+
+test('其他用户、无所有者记录和不存在记录均不能编辑', () => {
+  const { storage, post } = seed();
+  const raw = storage.getItem(Manage.POSTS_KEY);
+  storage.setItem(Manage.USER_KEY, 'other');
+  assert.equal(Manage.updatePost(post.id, input(), storage).ok, false);
+  assert.equal(Manage.updatePost('missing', input(), storage).ok, false);
+  assert.equal(storage.getItem(Manage.POSTS_KEY), raw);
+  storage.setItem(Manage.POSTS_KEY, JSON.stringify([{ ...post, ownerId: undefined }]));
+  assert.equal(Manage.updatePost(post.id, input(), storage).ok, false);
+});
+
+test('非法编辑内容不会写入，包括空白、超长字段和联系方式类型', () => {
+  const { storage, post } = seed();
+  const raw = storage.getItem(Manage.POSTS_KEY);
+  for (const data of [null, {}, input({ name: ' ' }), input({ place: '' }), input({ contact: '' }), input({ contactType: '' }), input({ name: 'x'.repeat(51) }), input({ category: 'x'.repeat(21) }), input({ desc: 1 }), input({ time: '2026-02-30T09:00' })]) {
+    assert.equal(Manage.updatePost(post.id, data, storage).ok, false);
+    assert.equal(storage.getItem(Manage.POSTS_KEY), raw);
+  }
+});
+
+test('编辑遇到损坏数据、存储禁用和写满时保留原记录', () => {
+  const { storage, post } = seed();
+  const raw = storage.getItem(Manage.POSTS_KEY);
+  storage.setItem = () => { throw new Error('QuotaExceededError'); };
+  assert.equal(Manage.updatePost(post.id, input({ name: '新名称' }), storage).ok, false);
+  assert.equal(storage.getItem(Manage.POSTS_KEY), raw);
+  const corrupt = new MockStorage();
+  corrupt.setItem(Manage.POSTS_KEY, '{broken');
+  assert.equal(Manage.updatePost(post.id, input(), corrupt).ok, false);
+  assert.equal(corrupt.getItem(Manage.POSTS_KEY), '{broken');
+  assert.equal(Manage.updatePost(post.id, input(), null).ok, false);
+});
+
 for (const [name, raw] of [['损坏 JSON', '{broken'], ['非数组', '{}'], ['非法数组成员', '[null]'], ['空字符串', '']]) {
   test(name + '阻止发布、读取本人记录、更新和删除，原文保留', () => {
     const storage = new MockStorage();

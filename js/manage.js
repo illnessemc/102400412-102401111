@@ -125,6 +125,27 @@
     return writePosts(records.posts, storage);
   }
 
+  function updatePost(id, data, storage) {
+    if (storage === undefined && Api && Api.enabled) return Api.request('posts/' + encodeURIComponent(id), { method: 'PUT', data });
+    const records = readPosts(storage);
+    if (!records.ok) return records;
+    const identity = getUserId(storage);
+    if (!identity.ok) return identity;
+    const post = Posts.findPost(records.posts, id);
+    if (!post) return failure('这条信息不存在或已被删除');
+    if (post.ownerId !== identity.userId) return failure('只能编辑本人发布的信息');
+    if (data && data.type !== undefined && data.type !== post.type) return failure('编辑时不能改变寻物或招领类型');
+    const errors = validate({ ...data, type: post.type });
+    if (errors.length) return { ok: false, errors };
+    const updated = {
+      ...post, name: data.name.trim(), category: (data.category || '').trim(),
+      place: data.place.trim(), time: data.time, desc: (data.desc || '').trim(),
+      contactType: data.contactType, contact: data.contact.trim()
+    };
+    const written = writePosts(records.posts.map(record => record === post ? updated : record), storage);
+    return written.ok ? { ok: true, post: updated } : written;
+  }
+
   function deletePost(id, storage) {
     if (storage === undefined && Api && Api.enabled) return Api.request('posts/' + encodeURIComponent(id), { method: 'DELETE' });
     const records = readPosts(storage);
@@ -137,5 +158,5 @@
     return writePosts(records.posts.filter(record => String(record.id) !== String(id)), storage);
   }
 
-  return { POSTS_KEY, USER_KEY, getUserId, readPosts, savePost, getMyPosts, getPostById, updateStatus, deletePost };
+  return { POSTS_KEY, USER_KEY, getUserId, readPosts, savePost, getMyPosts, getPostById, updatePost, updateStatus, deletePost };
 });

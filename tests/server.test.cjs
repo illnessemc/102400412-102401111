@@ -185,6 +185,34 @@ test('服务重启后，信息和原 Cookie 的所有者关系仍保持', async 
   assert.deepEqual((await a.request('/api/posts')).result.posts, []);
 });
 
+test('本人编辑共享信息可被另一用户查询，原状态与管理字段保留', async t => {
+  const app = await fixture(t);
+  const a = app.client();
+  const b = app.client();
+  const post = (await a.request('/api/posts', { method: 'POST', data: input() })).result.post;
+  const route = '/api/posts/' + post.id;
+  const data = input({ name: '编辑后的雨伞', place: '食堂二楼', contactType: 'qq', contact: '12345678', ownerId: 'forged', status: '已找到', id: 'fake', createdAt: 'fake' });
+  const edited = await a.request(route, { method: 'PUT', data });
+  assert.equal(edited.status, 200);
+  assert.deepEqual((await b.request(route)).result.post, { ...post, name: data.name, place: data.place, contactType: data.contactType, contact: data.contact });
+  assert.equal((await b.request(route, { method: 'PUT', data })).status, 403);
+  assert.equal((await b.request('/api/my-posts')).result.posts.length, 0);
+});
+
+test('共享编辑拒绝缺项、类型变更和跨站写入，已结束内容可更正', async t => {
+  const app = await fixture(t);
+  const a = app.client();
+  const post = (await a.request('/api/posts', { method: 'POST', data: input() })).result.post;
+  const route = '/api/posts/' + post.id;
+  for (const data of [input({ name: '' }), input({ contactType: '' }), input({ type: 'found' })]) assert.equal((await a.request(route, { method: 'PUT', data })).status, 400);
+  assert.equal((await a.request(route, { method: 'PUT', data: input(), headers: { Origin: 'https://example.com' } })).status, 403);
+  assert.deepEqual((await a.request(route)).result.post, post);
+  assert.equal((await a.request(route, { method: 'PATCH', data: { status: '已找到' } })).status, 200);
+  assert.equal((await a.request(route, { method: 'PUT', data: input({ desc: '更正描述' }) })).status, 200);
+  assert.equal((await a.request(route)).result.post.status, '已找到');
+  assert.equal((await a.request('/api/posts/missing', { method: 'PUT', data: input() })).status, 404);
+});
+
 test('并发发布不会相互覆盖，也不会重复 ID', async t => {
   const app = await fixture(t);
   const a = app.client();
@@ -218,6 +246,7 @@ test('磁盘写入失败时接口失败，旧数据没有被替换', async t => 
   try {
     assert.equal((await a.request('/api/posts', { method: 'POST', data: input() })).status, 503);
     assert.equal((await a.request('/api/posts/' + record.id, { method: 'PATCH', data: { status: '已找到' } })).status, 503);
+    assert.equal((await a.request('/api/posts/' + record.id, { method: 'PUT', data: input({ name: '更正名称' }) })).status, 503);
     assert.equal((await a.request('/api/posts/' + record.id, { method: 'DELETE' })).status, 503);
     assert.equal(fs.readFileSync(filename, 'utf8'), raw);
     assert.deepEqual(fs.readdirSync(app.dataDir).sort(), ['posts.json', 'session.key']);

@@ -111,7 +111,7 @@ function createAppHandler({ dataDir = path.join(__dirname, 'data'), seedDemo = t
       const url = new URL(req.url, 'http://' + req.headers.host);
       const pathname = url.pathname;
       if (pathname.startsWith('/api/')) {
-        if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(req.method)) return json(res, 405, { ok: false, errors: ['不支持该请求方法'] });
+        if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return json(res, 405, { ok: false, errors: ['不支持该请求方法'] });
         if (req.method !== 'GET' && req.headers.origin && req.headers.origin !== url.origin) return json(res, 403, { ok: false, errors: ['不接受跨站写入'] });
         const userId = identity(req, res);
         const store = storeFor(userId);
@@ -137,6 +137,11 @@ function createAppHandler({ dataDir = path.join(__dirname, 'data'), seedDemo = t
           if (!found.post) return json(res, 404, { ok: false, errors: ['这条信息不存在或已被删除'] });
           if (req.method === 'GET') return json(res, 200, found);
           if (found.post.ownerId !== userId) return json(res, 403, { ok: false, errors: ['只能操作本人发布的信息'] });
+          if (req.method === 'PUT') {
+            const data = await body(req);
+            const result = Manage.updatePost(id, data, store);
+            return json(res, result.ok ? 200 : (result.errors.some(error => error.includes('保存失败')) ? 503 : 400), result);
+          }
           if (req.method === 'PATCH') {
             const data = await body(req);
             // Re-read after await: another request may have changed this record.
