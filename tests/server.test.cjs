@@ -199,7 +199,7 @@ test('并发发布不会相互覆盖，也不会重复 ID', async t => {
 test('损坏或非数组数据阻止接口读写，原始文件保留', async t => {
   const app = await fixture(t);
   const a = app.client();
-  for (const raw of ['{broken', '{}', '[null]']) {
+  for (const raw of ['{broken', '{}', '[null]', JSON.stringify([input({ id: 'bad-type', type: ['lost'], status: '寻找中' })])]) {
     fs.writeFileSync(path.join(app.dataDir, 'posts.json'), raw);
     assert.equal((await a.request('/api/posts')).status, 503);
     assert.equal((await a.request('/api/posts', { method: 'POST', data: input() })).status, 503);

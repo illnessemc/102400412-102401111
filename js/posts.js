@@ -52,7 +52,7 @@
       if (!((typeof post.id === 'string' && post.id.trim()) || (typeof post.id === 'number' && Number.isFinite(post.id)))) return false;
       if (ids.has(String(post.id))) return false;
       ids.add(String(post.id));
-      return Object.hasOwn(STATUS, post.type) && STATUS[post.type].includes(post.status) &&
+      return typeof post.type === 'string' && Object.hasOwn(STATUS, post.type) && STATUS[post.type].includes(post.status) &&
         ['name', 'category', 'place', 'time', 'desc'].every(key => typeof post[key] === 'string') &&
         Boolean(post.name.trim()) && (post.contact == null || typeof post.contact === 'string') &&
         (post.contactType == null || (typeof post.contactType === 'string' && Object.hasOwn(CONTACT_TYPES, post.contactType))) &&
@@ -87,7 +87,7 @@
 
   function iconFor(post) {
     const icons = { '校园卡/证件': '🪪', '雨伞': '☂️', '电子产品': '🎧', '钥匙': '🔑', '水杯': '🥤', '书籍文具': '📚', '衣物配饰': '🧢' };
-    return icons[post.category] || (post.type === 'lost' ? '🔎' : '📦');
+    return Object.hasOwn(icons, post.category) ? icons[post.category] : (post.type === 'lost' ? '🔎' : '📦');
   }
 
   function displayTime(value) {

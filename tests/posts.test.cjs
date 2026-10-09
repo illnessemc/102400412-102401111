@@ -75,6 +75,16 @@ test('非数组、缺少必需字段和类型状态不一致均拒绝读取', ()
   }
 });
 
+test('存储记录的类型必须是字符串，不能用数组伪装合法类型', () => {
+  for (const type of [['lost'], ['found']]) {
+    const raw = JSON.stringify([post({ type, status: type[0] === 'lost' ? '寻找中' : '招领中' })]);
+    const store = storage(raw);
+    assert.equal(Posts.readStoredPosts(store).ok, false);
+    assert.match(Posts.loadPosts(store).error, /无法读取/);
+    assert.equal(store.getItem(Posts.STORAGE_KEY), raw);
+  }
+});
+
 test('数值与字符串相同的重复 ID 会被拒绝', () => {
   const result = Posts.loadPosts(storage(JSON.stringify([post({ id: 1 }), post({ id: '1' })])));
   assert.notEqual(result.error, '');
@@ -89,6 +99,13 @@ test('存储访问被禁用时页面仍可读取演示信息', () => {
 test('类别选项去重，未知类别使用通用物品图标', () => {
   assert.deepEqual(Posts.categories([post(), post(), post({ category: '钥匙' })]).sort(), ['钥匙', '雨伞'].sort());
   assert.equal(Posts.iconFor(post({ category: '其他' })), '🔎');
+});
+
+test('类别与对象属性同名时仍使用通用物品图标', () => {
+  for (const category of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+    assert.equal(Posts.iconFor(post({ category })), '🔎');
+    assert.equal(Posts.iconFor(post({ category, type: 'found', status: '招领中' })), '📦');
+  }
 });
 
 test('关键词检索名称及描述，并忽略大小写和首尾空格', () => {
