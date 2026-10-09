@@ -6,7 +6,7 @@ const Manage = require('./js/manage.js');
 const Posts = require('./js/posts.js');
 
 const COOKIE = 'campus-publisher';
-const ASSETS = new Set(['/index.html', '/css/app.css', ...['posts', 'manage', 'home', 'search', 'detail', 'publish', 'my', 'app', 'api'].map(name => '/js/' + name + '.js')]);
+const ASSETS = new Set(['/index.html', '/css/app.css', ...['posts', 'manage', 'home', 'search', 'detail', 'publish', 'edit', 'my', 'app', 'api'].map(name => '/js/' + name + '.js')]);
 
 function createAppHandler({ dataDir = path.join(__dirname, 'data'), seedDemo = true } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });

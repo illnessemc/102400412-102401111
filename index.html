@@ -13,6 +13,7 @@
   <script defer src="js/detail.js"></script>
   <script defer src="js/manage.js"></script>
   <script defer src="js/publish.js"></script>
+  <script defer src="js/edit.js"></script>
   <script defer src="js/my.js"></script>
   <script defer src="js/app.js"></script>
 </head>
@@ -114,6 +115,10 @@
             <a class="context-link" href="#search">先看看已有的线索</a>
           </aside>
         </div>
+      </section>
+      <section id="page-edit" class="page" hidden aria-labelledby="edit-heading">
+        <div class="hero"><h1 id="edit-heading">编辑信息</h1><p>更新物品内容与联系方式，信息类型和当前状态保持原样。</p></div>
+        <div class="section"><p id="edit-state" role="status" hidden></p><div id="edit-form-area"></div></div>
       </section>
       <section id="page-success" class="page" hidden aria-labelledby="success-heading">
         <div class="hero"><h1 id="success-heading">发布结果</h1><p>查看这次的发布记录，继续管理你的线索。</p></div>

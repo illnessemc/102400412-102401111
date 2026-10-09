@@ -55,9 +55,9 @@
     const separator = route.indexOf('?');
     const page = separator < 0 ? route : route.slice(0, separator);
     const params = new URLSearchParams(separator < 0 ? '' : route.slice(separator + 1));
-    if (!['home', 'search', 'detail', 'publish', 'success', 'my'].includes(page)) { navigate('home'); return; }
+    if (!['home', 'search', 'detail', 'publish', 'edit', 'success', 'my'].includes(page)) { navigate('home'); return; }
     document.querySelectorAll('.page').forEach(section => { section.hidden = section.id !== 'page-' + page; });
-    const navigationPage = page === 'success' ? 'publish' : page === 'detail' ? CampusDetail.backRoute(params.get('from')).split('?')[0] : page;
+    const navigationPage = page === 'edit' ? 'my' : page === 'success' ? 'publish' : page === 'detail' ? CampusDetail.backRoute(params.get('from')).split('?')[0] : page;
     document.querySelectorAll('a.nav-link').forEach(function (link) {
       const active = link.dataset.page === navigationPage;
       link.classList.toggle('active', active);
@@ -85,10 +85,11 @@
     if (page === 'search') CampusSearch.render(data.posts, params);
     if (page === 'detail') CampusDetail.render(data.posts, params);
     if (page === 'publish') PublishModule.render(document.getElementById('publish-form-area'), params);
+    if (page === 'edit') await CampusEdit.render(document.getElementById('edit-form-area'), params, isCurrent);
     if (page === 'success') await PublishModule.renderSuccess(document.getElementById('success-content'), params, isCurrent);
     if (page === 'my') await MyModule.render(document.getElementById('my-list'), params, isCurrent);
     if (!isCurrent()) return;
-    const titles = { home: '首页', search: '搜索物品', detail: '信息详情', publish: '发布信息', success: '发布成功', my: '我的发布' };
+    const titles = { home: '首页', search: '搜索物品', detail: '信息详情', publish: '发布信息', edit: '编辑信息', success: '发布成功', my: '我的发布' };
     document.title = (titles[page] || '') + ' · 校园失物招领';
   }
 

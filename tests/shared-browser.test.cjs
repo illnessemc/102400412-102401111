@@ -100,6 +100,33 @@ async function sharedScenarios(mode) {
       expect(page.document.querySelectorAll('#home-list .card').length === 1, '恢复连接后未刷新');
       expect(page.document.querySelector('#source-note').hidden, '恢复连接后旧错误未消失');
     });
+    await check('本人编辑共享信息，断线保留修改，恢复后保存且保持记录身份', async () => {
+      const original = (await (await fetch('/api/posts')).json()).posts[0];
+      await go('my');
+      await until(() => page.document.querySelector('.my-card a[href^="#edit?"]'));
+      page.document.querySelector('.my-card a[href^="#edit?"]').click();
+      await until(() => page.document.querySelector('#edit-form') && !page.document.querySelector('#edit-form').hidden);
+      expect(page.document.querySelector('#edit-name').value === payload, '编辑没有回填原内容');
+      expect(page.document.querySelector('#edit-type').disabled, '编辑时可以改变信息类型');
+      page.document.querySelector('#edit-place').value = '共享图书馆二楼';
+      page.document.querySelector('#edit-contactType').value = 'phone';
+      page.document.querySelector('#edit-contactType').dispatchEvent(new page.Event('change', { bubbles: true }));
+      page.document.querySelector('#edit-contact').value = '00000001';
+      const nativeFetch = page.fetch;
+      page.fetch = () => Promise.reject(new Error('offline'));
+      page.document.querySelector('#edit-form').requestSubmit();
+      await until(() => !page.document.querySelector('#edit-error').hidden);
+      expect(page.document.querySelector('#edit-place').value === '共享图书馆二楼', '断线后编辑内容丢失');
+      expect(!page.document.querySelector('#edit-submit').disabled, '编辑失败后无法重试');
+      expect(page.document.querySelector('#edit-type').disabled, '编辑失败后类型被解锁');
+      expect((await (await fetch('/api/posts')).json()).posts[0].place === original.place, '断线时误改原记录');
+      page.fetch = nativeFetch;
+      page.document.querySelector('#edit-form').requestSubmit();
+      await until(() => page.location.hash === '#my' && page.document.querySelector('#my-cards') && page.document.querySelector('#my-cards').textContent.includes('共享图书馆二楼'));
+      const updated = (await (await fetch('/api/posts')).json()).posts[0];
+      expect(updated.place === '共享图书馆二楼' && updated.contactType === 'phone' && updated.contact === '00000001', '修改未保存到服务');
+      for (const field of ['id', 'ownerId', 'createdAt', 'type', 'status']) expect(updated[field] === original[field], '编辑改变了记录字段：' + field);
+    });
   } else if (mode === 'view') {
     await load('home');
     await check('另一浏览器能浏览、搜索并查看甲发布的信息及联系方式', async () => {
@@ -108,14 +135,24 @@ async function sharedScenarios(mode) {
       page.document.querySelector('#search-list .card').click();
       await until(() => page.document.querySelector('#contact-value'));
       expect(page.document.querySelector('#contact-value').getBoundingClientRect().height > 0, '另一用户的联系方式未直接展示');
-      expect(page.document.querySelector('#contact-value').value === '00000000', '共享联系方式错误');
-      expect(page.document.querySelector('#contact-kind').textContent === 'QQ 号码', '共享联系方式类型不明确');
+      expect(page.document.querySelector('#contact-value').value === '00000001', '编辑后的共享联系方式错误');
+      expect(page.document.querySelector('#contact-kind').textContent === '手机号', '编辑后的共享联系方式类型不明确');
+      expect(page.document.querySelector('#detail-content').textContent.includes('共享图书馆二楼'), '另一用户未看到编辑地点');
     });
     await check('乙的我的发布为空，没有甲的管理按钮', async () => {
       await go('my');
       await until(() => page.document.querySelector('#my-cards'));
       expect(page.document.querySelectorAll('.my-card').length === 0, '乙拥有甲的记录');
       expect(!page.document.querySelector('button[data-action]'), '乙能管理甲的记录');
+    });
+    await check('乙不能通过直接编辑路由或 PUT 修改甲的信息', async () => {
+      const post = (await (await fetch('/api/posts')).json()).posts[0];
+      await go('edit?id=' + post.id);
+      await until(() => page.document.querySelector('#edit-state').textContent.includes('不存在或不属于你'));
+      expect(page.document.querySelector('#edit-form').hidden, '乙仍可编辑甲的表单');
+      const response = await fetch('/api/posts/' + post.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...post, name: '伪造修改' }) });
+      expect(response.status === 403, '乙通过 PUT 越权编辑');
+      expect((await (await fetch('/api/posts')).json()).posts[0].name === post.name, '越权修改了原信息');
     });
   } else if (mode === 'finish') {
     await load('my');
@@ -184,7 +221,7 @@ test('Chrome 两个独立发布者的共享流程', { timeout: 120000 }, async t
       all.push(...results);
       for (const result of results) await t.test(result.name, () => assert.equal(result.ok, true, result.error));
     }
-    assert.equal(all.length, 9);
+    assert.equal(all.length, 11);
     if (process.env.CAMPUS_TEST_ARTIFACT_DIR) {
       await fs.mkdir(process.env.CAMPUS_TEST_ARTIFACT_DIR, { recursive: true });
       await fs.writeFile(path.join(process.env.CAMPUS_TEST_ARTIFACT_DIR, 'shared-browser-results.json'), JSON.stringify(all, null, 2));

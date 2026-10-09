@@ -1,25 +1,23 @@
 (function () {
   'use strict';
 
-  function updateLabels(container) {
-    const found = container.querySelector('#pub-type').value === 'found';
-    container.querySelector('#pub-place-label').textContent = (found ? '拾取' : '丢失') + '地点';
-    container.querySelector('#pub-time-label').textContent = (found ? '拾取' : '丢失') + '时间';
+  function updateLabels(container, prefix) {
+    const found = container.querySelector('#' + prefix + '-type').value === 'found';
+    container.querySelector('#' + prefix + '-place-label').textContent = (found ? '拾取' : '丢失') + '地点';
+    container.querySelector('#' + prefix + '-time-label').textContent = (found ? '拾取' : '丢失') + '时间';
   }
 
-  function updateContact(container) {
-    const type = container.querySelector('#pub-contactType').value;
-    const input = container.querySelector('#pub-contact');
-    container.querySelector('#pub-contact-label').textContent = CampusPosts.CONTACT_TYPES[type] || '号码 / 账号';
+  function updateContact(container, prefix) {
+    const type = container.querySelector('#' + prefix + '-contactType').value;
+    const input = container.querySelector('#' + prefix + '-contact');
+    container.querySelector('#' + prefix + '-contact-label').textContent = CampusPosts.CONTACT_TYPES[type] || '号码 / 账号';
     input.placeholder = { wechat: '填写微信号', qq: '填写 QQ 号码', phone: '填写手机号码' }[type] || '先选择联系方式类型，再填写号码或账号';
     input.type = type === 'phone' ? 'tel' : 'text';
     input.inputMode = type === 'qq' || type === 'phone' ? 'tel' : 'text';
   }
 
-  function render(container, params) {
-    if (!container.dataset.rendered) {
-      container.dataset.rendered = '1';
-      container.innerHTML =
+  function createForm(container, prefix) {
+      const template =
         '<form id="pub-form" class="publish-form">' +
           '<fieldset class="form-group"><legend>物品信息</legend><div class="form-fields">' +
           '<label class="field-wide" for="pub-type">信息类型<select id="pub-type" required><option value="lost">寻物（我丢了东西）</option><option value="found">招领（我捡到东西）</option></select></label>' +
@@ -32,41 +30,113 @@
           '<fieldset class="form-group"><legend>方便同学联系你</legend><div class="form-fields">' +
           '<label for="pub-contactType">联系方式类型 <span class="required-mark" aria-hidden="true">*</span><select id="pub-contactType" required><option value="">请选择联系方式</option><option value="wechat">微信</option><option value="qq">QQ</option><option value="phone">手机号</option></select></label>' +
           '<label for="pub-contact"><span id="pub-contact-label">号码 / 账号</span> <span class="required-mark" aria-hidden="true">*</span><input id="pub-contact" required maxlength="50" placeholder="先选择联系方式类型，再填写号码或账号"></label>' +
-          '</div><p class="field-note">联系方式会显示在详情页，发布前请确认填写正确。</p></fieldset>' +
+          '</div><p class="field-note">联系方式会显示在详情页，请确认填写正确。</p></fieldset>' +
           '<p id="pub-error" class="form-error" role="alert" tabindex="-1" hidden></p>' +
           '<div class="form-actions"><button id="pub-submit" class="filter-button" type="submit">发布信息</button><button class="text-button" id="pub-cancel" type="button">取消</button></div>' +
         '</form>';
-      const form = container.querySelector('#pub-form');
-      const type = container.querySelector('#pub-type');
-      const errorNote = container.querySelector('#pub-error');
-      const submit = container.querySelector('#pub-submit');
-      type.addEventListener('change', function () { updateLabels(container); });
-      container.querySelector('#pub-contactType').addEventListener('change', function () { updateContact(container); });
-      container.querySelector('#pub-cancel').addEventListener('click', function () { CampusUI.navigate('home'); });
+    container.innerHTML = template.replaceAll('pub-', prefix + '-');
+    const form = container.querySelector('#' + prefix + '-form');
+    const errorNote = container.querySelector('#' + prefix + '-error');
+    const names = ['type', 'name', 'category', 'place', 'time', 'contactType', 'contact', 'desc'];
+    const field = name => container.querySelector('#' + prefix + '-' + name);
+    let attempted = false;
+    let typeLocked = false;
+    form.noValidate = true;
+    form.prepend(errorNote);
+    names.forEach(function (name) {
+      const message = CampusUI.element('span', 'field-error');
+      message.id = prefix + '-' + name + '-error';
+      message.hidden = true;
+      field(name).after(message);
+    });
+
+    function refresh() { updateLabels(container, prefix); updateContact(container, prefix); }
+    function getData() { return Object.fromEntries(names.map(name => [name, field(name).value])); }
+    function labelFor(name) {
+      const found = field('type').value === 'found';
+      return { type: '信息类型', name: '物品名称', category: '物品类别', place: (found ? '拾取' : '丢失') + '地点', time: (found ? '拾取' : '丢失') + '时间', contactType: '联系方式类型', contact: CampusPosts.CONTACT_TYPES[field('contactType').value] || '号码 / 账号', desc: '物品描述' }[name];
+    }
+    function fieldError(name) {
+      const control = field(name);
+      if (control.disabled) return '';
+      const label = labelFor(name);
+      const value = control.value.trim();
+      if (control.required && !value) return (control.tagName === 'SELECT' ? '请选择' : '请填写') + label;
+      if (!control.validity.valid) return '请填写有效的' + label;
+      if (control.maxLength >= 0 && value.length > control.maxLength) return label + '不能超过' + control.maxLength + '个字符';
+      return '';
+    }
+    function markField(name, text) {
+      const control = field(name);
+      const message = container.querySelector('#' + prefix + '-' + name + '-error');
+      if (message.textContent !== text) message.textContent = text;
+      message.hidden = !text;
+      control.classList.toggle('invalid', Boolean(text));
+      if (text) { control.setAttribute('aria-invalid', 'true'); control.setAttribute('aria-describedby', message.id); }
+      else { control.removeAttribute('aria-invalid'); control.removeAttribute('aria-describedby'); }
+    }
+    function showError(text) {
+      if (errorNote.textContent !== text) errorNote.textContent = text;
+      errorNote.hidden = !text;
+    }
+    function validate(focus = true) {
+      attempted = true;
+      const invalid = [];
+      names.forEach(function (name) {
+        const text = fieldError(name);
+        markField(name, text);
+        if (text) invalid.push({ name, text });
+      });
+      showError(invalid.length ? '请完善以下内容：' + invalid.map(item => item.text).join('；') + '。' : '');
+      if (focus && invalid.length) field(invalid[0].name).focus();
+      return invalid.length === 0;
+    }
+    function setBusy(busy) {
+      form.dataset.submitting = busy ? '1' : '0';
+      Array.from(form.elements).forEach(control => { control.disabled = busy; });
+      field('type').disabled = busy || typeLocked;
+    }
+    function reset() {
+      form.reset();
+      attempted = false;
+      names.forEach(name => markField(name, ''));
+      showError('');
+      refresh();
+    }
+    function setData(data) {
+      reset();
+      names.forEach(name => { field(name).value = data[name] == null ? '' : data[name]; });
+      refresh();
+    }
+    field('type').addEventListener('change', refresh);
+    field('contactType').addEventListener('change', refresh);
+    form.addEventListener('input', function () { if (attempted) validate(false); });
+    form.addEventListener('change', function () { if (attempted) validate(false); });
+    refresh();
+    return { form, field, getData, setData, refresh, reset, validate, showError, setBusy, lockType() { typeLocked = true; field('type').disabled = true; } };
+  }
+
+  let publishForm;
+  function render(container, params) {
+    if (!publishForm) {
+      publishForm = createForm(container, 'pub');
+      const { form, field, validate, getData, showError, setBusy, reset } = publishForm;
+      field('cancel').addEventListener('click', function () { CampusUI.navigate('home'); });
       form.addEventListener('submit', async function (event) {
         event.preventDefault();
         if (form.dataset.submitting === '1') return;
-        form.dataset.submitting = '1';
-        submit.disabled = true;
-        errorNote.hidden = true;
-        const data = {};
-        ['type', 'name', 'category', 'place', 'time', 'contactType', 'contact', 'desc'].forEach(function (field) {
-          data[field] = container.querySelector('#pub-' + field).value;
-        });
+        if (!validate()) return;
+        const data = getData();
         const route = location.hash;
-        Array.from(form.elements).forEach(control => { control.disabled = true; });
+        setBusy(true);
         const result = await CampusManage.savePost(data);
         if (!result.ok) {
-          errorNote.textContent = result.errors.join(' ');
-          errorNote.hidden = false;
-          errorNote.focus();
-          form.dataset.submitting = '0';
-          Array.from(form.elements).forEach(control => { control.disabled = false; });
+          setBusy(false);
+          showError(result.errors.join(' '));
+          field('error').focus();
           return;
         }
-        form.reset();
-        updateLabels(container);
-        updateContact(container);
+        reset();
         form.dataset.saved = '1';
         // Keep the successful submission locked until the next visit to this form.
         if (location.hash === route) CampusUI.navigate('success?id=' + encodeURIComponent(result.post.id));
@@ -74,16 +144,14 @@
         window.dispatchEvent(new Event('campus:posts-changed'));
       });
     }
-    const form = container.querySelector('#pub-form');
+    const { form, field, setBusy, refresh } = publishForm;
     if (form.dataset.saved === '1') {
       form.dataset.saved = '0';
-      form.dataset.submitting = '0';
-      Array.from(form.elements).forEach(control => { control.disabled = false; });
+      setBusy(false);
     }
     const type = params.get('type');
-    if (form.dataset.submitting !== '1' && (type === 'lost' || type === 'found')) container.querySelector('#pub-type').value = type;
-    updateLabels(container);
-    updateContact(container);
+    if (form.dataset.submitting !== '1' && (type === 'lost' || type === 'found')) field('type').value = type;
+    refresh();
   }
 
   async function renderSuccess(container, params, isCurrent = () => true) {
@@ -165,5 +233,5 @@
     heading.focus({ preventScroll: true });
   }
 
-  window.PublishModule = { render, renderSuccess };
+  window.PublishModule = { createForm, render, renderSuccess };
 })();

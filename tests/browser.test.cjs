@@ -53,10 +53,20 @@ async function browserScenarios() {
     expect(page.document.querySelector('#pub-type').value === 'found', '未预选招领');
     expect(page.document.querySelector('#pub-place-label').textContent === '拾取地点', '招领标签错误');
   });
-  await scenario('原生必填项校验阻止空表单发布', async () => {
+  await scenario('缺少必填项时显示摘要和字段提示，聚焦首项并阻止发布', async () => {
     await submit();
     expect(page.location.hash.startsWith('#publish'), '空表单跳转成功');
     expect(page.localStorage.getItem(key) === null, '空表单写入数据');
+    expect(!page.document.querySelector('#pub-error').hidden, '缺少必填项未显示提醒');
+    expect(page.document.activeElement.id === 'pub-name', '未聚焦第一个缺项');
+    for (const name of ['name', 'place', 'time', 'contactType', 'contact']) {
+      expect(page.document.querySelector('#pub-' + name).getAttribute('aria-invalid') === 'true', name + '未标记无效');
+      expect(!page.document.querySelector('#pub-' + name + '-error').hidden, name + '缺少具体提示');
+    }
+    fill('   ', 'found');
+    await submit();
+    expect(page.document.querySelector('#pub-name-error').textContent.includes('物品名称'), '纯空格名称没有提示');
+    expect(records().length === 0, '纯空格名称被保存');
   });
 
   await scenario('联系方式必须选择类型，三种选择同步输入标签且保留账号草稿', async () => {
@@ -164,6 +174,71 @@ async function browserScenarios() {
     await reload();
     expect(page.document.querySelectorAll('.my-card').length === 2, '我的页面刷新丢失');
   });
+  await scenario('我的发布可编辑，保存后搜索与详情更新且原管理字段保持', async () => {
+    await go('my?filter=ongoing');
+    const original = { ...found };
+    const link = [...page.document.querySelectorAll('.my-card a[href^="#edit?"]')].find(node => new URLSearchParams(node.hash.split('?')[1]).get('id') === found.id);
+    expect(link, '本人记录没有编辑入口');
+    link.click(); await wait();
+    expect(page.document.querySelector('#edit-name').value === found.name, '编辑未预填');
+    expect(page.document.querySelector('#edit-type').disabled && page.document.querySelector('#edit-type').value === 'found', '类型未保留或允许误改');
+    expect(page.document.querySelector('a.nav-link[aria-current="page"]').dataset.page === 'my', '编辑未高亮我的发布');
+    page.document.querySelector('#edit-place').value = '图书馆西门';
+    page.document.querySelector('#edit-desc').value = '修改描述 ' + payload;
+    page.document.querySelector('#edit-contactType').value = 'qq';
+    page.document.querySelector('#edit-contactType').dispatchEvent(new page.Event('change', { bubbles: true }));
+    page.document.querySelector('#edit-contact').value = '00000009';
+    page.document.querySelector('#edit-form').requestSubmit(); await wait();
+    expect(page.location.hash === '#my?filter=ongoing', '保存未返回原筛选');
+    found = records().find(post => post.id === original.id);
+    expect(records().length === 2 && found.ownerId === original.ownerId && found.createdAt === original.createdAt && found.status === original.status, '编辑改变管理字段或新增了记录');
+    await go('search?keyword=' + encodeURIComponent('图书馆西门'));
+    expect(page.document.querySelectorAll('#search-list .card').length === 1, '搜索未更新地点');
+    page.document.querySelector('#search-list .card').click(); await wait();
+    expect(page.document.querySelector('#contact-kind').textContent === 'QQ 号码' && page.document.querySelector('#contact-value').value === '00000009', '编辑后的联系方式错误');
+    expect(page.document.querySelector('#detail-content').textContent.includes(payload) && !page.document.querySelector('#detail-content img'), '编辑内容没有安全展示');
+  });
+  await scenario('编辑缺项和写满有提示，重试只保存一次，取消及新发布草稿保持', async () => {
+    await go('publish'); fill('尚未发布草稿');
+    await go('edit?id=' + found.id + '&from=' + encodeURIComponent('my?filter=ongoing'));
+    const raw = page.localStorage.getItem(key);
+    page.document.querySelector('#edit-name').value = '';
+    page.document.querySelector('#edit-form').requestSubmit(); await wait();
+    expect(!page.document.querySelector('#edit-name-error').hidden && page.document.activeElement.id === 'edit-name', '编辑缺项未提示或聚焦');
+    expect(page.localStorage.getItem(key) === raw, '缺项编辑改动数据');
+    const name = '重试修改 ' + payload;
+    page.document.querySelector('#edit-name').value = name;
+    const original = page.Storage.prototype.setItem;
+    page.Storage.prototype.setItem = function (k, v) { if (k === key) throw new page.DOMException('full', 'QuotaExceededError'); return original.call(this, k, v); };
+    try {
+      page.document.querySelector('#edit-form').requestSubmit(); await wait();
+      expect(page.document.querySelector('#edit-name').value === name && !page.document.querySelector('#edit-error').hidden, '失败未保留输入或未提示');
+      expect(!page.document.querySelector('#edit-submit').disabled && page.document.querySelector('#edit-type').disabled, '失败未解锁或类型锁丢失');
+      expect(page.localStorage.getItem(key) === raw, '写满编辑改动原值');
+    } finally { page.Storage.prototype.setItem = original; }
+    let writes = 0;
+    page.Storage.prototype.setItem = function (k, v) { if (k === key) writes++; return original.call(this, k, v); };
+    try {
+      const form = page.document.querySelector('#edit-form');
+      form.requestSubmit(); form.requestSubmit(); await wait();
+      expect(writes === 1 && page.location.hash === '#my?filter=ongoing', '重复编辑保存或未返回');
+    } finally { page.Storage.prototype.setItem = original; }
+    found = records().find(post => post.id === found.id);
+    const saved = page.localStorage.getItem(key);
+    await go('edit?id=' + found.id + '&from=' + encodeURIComponent('my?filter=ongoing'));
+    await reload();
+    expect(page.document.querySelector('#edit-name').value === name, '编辑刷新未定位最新记录');
+    page.document.querySelector('#edit-desc').value = '取消这次修改';
+    page.document.querySelector('#edit-cancel').click(); await wait();
+    expect(page.location.hash === '#my?filter=ongoing' && page.localStorage.getItem(key) === saved, '取消未返回或仍保存');
+    // Reload above creates a new page context; verify draft separation in that context.
+    await go('publish'); fill('独立的新发布草稿');
+    await go('edit?id=' + found.id);
+    expect(page.document.querySelector('#edit-desc').value === found.desc, '取消的修改仍留在编辑表单');
+    page.document.querySelector('#edit-cancel').click(); await wait();
+    await go('publish');
+    expect(page.document.querySelector('#pub-name').value === '独立的新发布草稿', '编辑覆盖新发布草稿');
+  });
   await scenario('我的筛选无结果有提示，详情返回保留筛选条件', async () => {
     await go('my?filter=finished');
     expect(page.document.querySelector('#my-cards').textContent.includes('当前筛选下暂无记录'), '筛选空结果无提示');
@@ -189,6 +264,16 @@ async function browserScenarios() {
     expect(page.document.querySelectorAll('.my-card').length === 1, '进行中筛选没有更新');
     expect(page.document.querySelector('#my-filter').value === 'ongoing', '更新丢失筛选');
     expect(page.document.querySelectorAll('#my-stats strong')[2].textContent === '1', '已结束统计错误');
+  });
+  await scenario('已结束记录仍可编辑，保存不重新开启并保留已结束筛选', async () => {
+    await go('my?filter=finished');
+    page.document.querySelector('.my-card a[href^="#edit?"]').click(); await wait();
+    page.document.querySelector('#edit-desc').value = '归还后更正描述';
+    page.document.querySelector('#edit-form').requestSubmit(); await wait();
+    expect(page.location.hash === '#my?filter=finished', '结束记录保存丢失筛选');
+    expect(records().find(post => post.id === found.id).status === '已归还', '编辑重新开启信息');
+    expect(page.document.querySelectorAll('#my-stats strong')[2].textContent === '1', '结束统计改变');
+    await go('my?filter=ongoing');
   });
   await scenario('寻物标记已找到，默认搜索排除结束记录，历史查询可见', async () => {
     button(lost.id, 'finish').click(); await wait();
@@ -236,6 +321,23 @@ async function browserScenarios() {
     await load('success?id=missing');
     expect(page.document.querySelector('#success-content').textContent.includes('不存在'), '未知 ID 显示成功');
   });
+  await scenario('其他人或不存在的信息无法编辑，迟到的编辑读取不覆盖当前页面', async () => {
+    const raw = page.localStorage.getItem(key);
+    for (const id of [found.id, 'missing']) {
+      await go('edit?id=' + id);
+      expect(page.document.querySelector('#edit-form').hidden && page.document.querySelector('#edit-state').textContent.includes('不存在或不属于你'), '无权编辑仍展示表单');
+    }
+    expect(page.localStorage.getItem(key) === raw, '无权编辑改动数据');
+    const original = page.CampusManage.getMyPosts;
+    let resolve;
+    page.CampusManage.getMyPosts = () => new Promise(done => { resolve = done; });
+    try {
+      await go('edit?id=' + found.id);
+      await go('home');
+      resolve(original()); await wait();
+      expect(!page.document.querySelector('#page-home').hidden && page.document.title.startsWith('首页'), '迟到编辑读取覆盖当前页');
+    } finally { page.CampusManage.getMyPosts = original; }
+  });
   await scenario('损坏数据提示错误，发布被拒绝且原文保留', async () => {
     page.localStorage.setItem(key, '{broken');
     await load('my');
@@ -280,9 +382,9 @@ async function browserScenarios() {
       expect(page.document.querySelector('#toast').textContent.includes('保存失败'), '保存失败未提示');
     } finally { page.Storage.prototype.setItem = original; }
   });
-  await scenario('393px 窄屏的五个核心页面无横向溢出且底部导航可见', async () => {
+  await scenario('393px 窄屏的六个核心页面无横向溢出且底部导航可见', async () => {
     frame.style.width = '393px';
-    for (const route of ['home', 'search', 'detail?id=quota-case&from=my', 'publish', 'my']) {
+    for (const route of ['home', 'search', 'detail?id=quota-case&from=my', 'publish', 'my', 'edit?id=quota-case']) {
       await go(route);
       const note = page.document.querySelector('#source-note');
       expect(note.hidden && note.textContent === '', route + '仍显示常态模式说明');
@@ -351,7 +453,7 @@ test('Chrome 页面回归', { timeout: 60000 }, async t => {
     const results = JSON.parse(Buffer.from(match[1], 'base64').toString('utf8'));
     if (process.env.CAMPUS_TEST_ARTIFACT_DIR) await fs.writeFile(path.join(process.env.CAMPUS_TEST_ARTIFACT_DIR, 'browser-results.json'), JSON.stringify(results, null, 2));
     for (const result of results) await t.test(result.name, () => assert.equal(result.ok, true, result.error));
-    assert.equal(results.length, 22, '浏览器场景未全部执行');
+    assert.equal(results.length, 26, '浏览器场景未全部执行');
   } finally {
     await new Promise(resolve => server.close(resolve));
     const target = path.resolve(profile);

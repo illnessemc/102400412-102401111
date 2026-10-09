@@ -16,6 +16,9 @@
     const detail = el('a', 'back-link', '查看详情');
     detail.href = '#detail?' + new URLSearchParams({ id: String(post.id), from }).toString();
     actions.append(detail);
+    const edit = el('a', 'back-link', '编辑内容');
+    edit.href = '#edit?' + new URLSearchParams({ id: String(post.id), from }).toString();
+    actions.append(edit);
     if (!done) {
       const finish = el('button', 'filter-button', '标记为' + finishStatus(post));
       finish.type = 'button';

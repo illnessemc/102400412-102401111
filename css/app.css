@@ -158,6 +158,8 @@ a.card:hover { border-color: #93bdec; }
 .form-fields + .field-note { margin: 12px 0 0; }
 .publish-form label { display: block; min-width: 0; color: var(--text); font-size: 15px; }
 .required-mark { color: #bd3434; }
+.field-error { display: block; margin-top: 5px; color: #a53030; font-size: 13px; }
+.publish-form .invalid { border-color: #cb5555; background: #fffafa; }
 .publish-form input, .publish-form select { min-width: 0; }
 .publish-form .form-actions { margin-top: 0; }
 .publish-form textarea { display: block; width: 100%; margin-top: 5px; padding: 10px 12px; border: 1px solid #d3dfea; border-radius: 10px; font: inherit; color: var(--text); resize: vertical; }
