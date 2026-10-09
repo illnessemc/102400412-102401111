@@ -67,7 +67,9 @@
     const note = document.getElementById('source-note');
     let data;
     if (CampusApi.enabled) {
-      note.textContent = '正在加载校园共享信息…';
+      note.classList.remove('warning');
+      note.hidden = false;
+      note.textContent = '正在加载信息…';
       const result = await CampusManage.readPosts();
       if (!isCurrent()) return;
       data = { posts: result.ok ? result.posts : [], source: 'server', error: result.ok ? '' : result.errors.join(' ') };
@@ -77,7 +79,8 @@
       data = CampusPosts.loadPosts(storage);
     }
     note.classList.toggle('warning', Boolean(data.error));
-    note.textContent = data.error || (data.source === 'server' ? '校园共享模式：同学可以浏览这里的寻物与招领信息。' : '本机模式：信息只保存在当前浏览器。');
+    note.textContent = data.error || '';
+    note.hidden = !data.error;
     if (page === 'home') CampusHome.render(data.posts, params);
     if (page === 'search') CampusSearch.render(data.posts, params);
     if (page === 'detail') CampusDetail.render(data.posts, params);

@@ -240,6 +240,7 @@ async function browserScenarios() {
     page.localStorage.setItem(key, '{broken');
     await load('my');
     expect(page.document.querySelector('#my-list .form-error'), '损坏数据未提示');
+    expect(!page.document.querySelector('#source-note').hidden, '损坏数据的顶部错误被隐藏');
     await go('publish');
     fill();
     await submit();
@@ -283,6 +284,8 @@ async function browserScenarios() {
     frame.style.width = '393px';
     for (const route of ['home', 'search', 'detail?id=quota-case&from=my', 'publish', 'my']) {
       await go(route);
+      const note = page.document.querySelector('#source-note');
+      expect(note.hidden && note.textContent === '', route + '仍显示常态模式说明');
       expect(page.document.documentElement.scrollWidth <= page.innerWidth, route + '横向溢出');
       const nav = page.document.querySelector('.bottom-nav').getBoundingClientRect();
       expect(nav.bottom <= page.innerHeight + 1 && nav.top >= 0, route + '导航不在视口');

@@ -43,6 +43,7 @@ async function sharedScenarios(mode) {
       expect(page.document.querySelectorAll('#home-list .card').length === 6, '进行中演示数量错误');
       expect(!page.document.querySelector('#page-home').textContent.includes('演示'), '预置信息仍带演示标签');
       expect(!page.document.querySelector('#source-note').textContent.includes('演示'), '顶部仍有演示提示');
+      expect(page.document.querySelector('#source-note').hidden, '正常共享首页仍显示模式说明');
       await go('search?keyword=' + encodeURIComponent('高等数学'));
       page.document.querySelector('#search-list .card').click();
       await until(() => page.document.querySelector('#contact-value'));
@@ -59,6 +60,7 @@ async function sharedScenarios(mode) {
     await load('publish?type=found');
     await check('服务模式正确启用，首次为空且没有演示数据', async () => {
       expect(page.CampusApi.enabled, '服务模式未启用');
+      expect(page.document.querySelector('#source-note').hidden, '正常发布页面仍显示模式说明');
       expect((await (await fetch('/api/posts')).json()).posts.length === 0, '服务不是空数据');
       expect(page.document.querySelector('#pub-type').value === 'found', '招领预选错误');
     });
@@ -91,10 +93,12 @@ async function sharedScenarios(mode) {
       page.fetch = () => Promise.reject(new Error('offline'));
       await go('home');
       expect(page.document.querySelector('#source-note').textContent.includes('无法连接'), '读取失败无提示');
+      expect(!page.document.querySelector('#source-note').hidden, '读取失败的错误被隐藏');
       expect(page.document.querySelectorAll('#home-list .card').length === 0, '读取失败补入演示信息');
       page.fetch = nativeFetch;
       await go('home');
       expect(page.document.querySelectorAll('#home-list .card').length === 1, '恢复连接后未刷新');
+      expect(page.document.querySelector('#source-note').hidden, '恢复连接后旧错误未消失');
     });
   } else if (mode === 'view') {
     await load('home');
